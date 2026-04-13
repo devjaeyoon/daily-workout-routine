@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Pretendard', ui-sans-serif, system-ui, sans-serif;
+  --color-toss-bg: #f2f4f6;
+  --color-toss-surface: #ffffff;
+  --color-toss-blue: #3182f6;
+  --color-toss-blue-dark: #1b64da;
+  --color-toss-text: #191f28;
+  --color-toss-text-sub: #8b95a1;
+  --shadow-toss-card: 0 2px 12px rgb(0 0 0 / 0.06);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  background-color: var(--color-toss-bg);
+  color: var(--color-toss-text);
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+/* Radix Select / Dialog 애니메이션 보조 */
+[data-state='open'] {
+  animation-duration: 0.2s;
+}
