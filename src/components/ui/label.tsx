@@ -1,6 +1,6 @@
-import * as LabelPrimitive from '@radix-ui/react-label'
-import type { ComponentPropsWithoutRef } from 'react'
-import { cn } from '../../lib/utils'
+import * as LabelPrimitive from '@radix-ui/react-label';
+import type { ComponentPropsWithoutRef } from 'react';
+import { cn } from '../../lib/utils';
 
 export function Label({
   className,
@@ -14,5 +14,5 @@ export function Label({
       )}
       {...props}
     />
-  )
+  );
 }

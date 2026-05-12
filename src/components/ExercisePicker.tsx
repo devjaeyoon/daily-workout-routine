@@ -1,23 +1,23 @@
-import * as Dialog from '@radix-ui/react-dialog'
-import { useMemo, useState } from 'react'
-import { EXERCISE_CATALOG, EXERCISE_CATEGORIES } from '../data/exercises'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import * as Dialog from '@radix-ui/react-dialog';
+import { useMemo, useState } from 'react';
+import { EXERCISE_CATALOG, EXERCISE_CATEGORIES } from '../data/exercises';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './ui/select'
+} from './ui/select';
 
 type ExercisePickerProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  alreadyAdded: Set<string>
-  onPick: (name: string, category: string) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  alreadyAdded: Set<string>;
+  onPick: (name: string, category: string) => void;
+};
 
 export function ExercisePicker({
   open,
@@ -25,17 +25,17 @@ export function ExercisePicker({
   alreadyAdded,
   onPick,
 }: ExercisePickerProps) {
-  const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<string>('전체')
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<string>('전체');
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = query.trim().toLowerCase();
     return EXERCISE_CATALOG.filter((e) => {
-      if (category !== '전체' && e.category !== category) return false
-      if (!q) return true
-      return e.name.toLowerCase().includes(q)
-    })
-  }, [query, category])
+      if (category !== '전체' && e.category !== category) return false;
+      if (!q) return true;
+      return e.name.toLowerCase().includes(q);
+    });
+  }, [query, category]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -55,7 +55,11 @@ export function ExercisePicker({
               </p>
             </div>
             <Dialog.Close asChild>
-              <Button type="button" variant="ghost" className="shrink-0 rounded-full">
+              <Button
+                type="button"
+                variant="ghost"
+                className="shrink-0 rounded-full"
+              >
                 닫기
               </Button>
             </Dialog.Close>
@@ -99,16 +103,16 @@ export function ExercisePicker({
               </li>
             ) : (
               filtered.map((ex) => {
-                const disabled = alreadyAdded.has(ex.name)
+                const disabled = alreadyAdded.has(ex.name);
                 return (
                   <li key={ex.name}>
                     <button
                       type="button"
                       disabled={disabled}
                       onClick={() => {
-                        onPick(ex.name, ex.category)
-                        onOpenChange(false)
-                        setQuery('')
+                        onPick(ex.name, ex.category);
+                        onOpenChange(false);
+                        setQuery('');
                       }}
                       className="flex w-full items-center justify-between gap-3 rounded-2xl border border-[#EEF1F4] bg-[#F9FAFB] px-4 py-3.5 text-left text-[15px] font-semibold text-[#191F28] transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 hover:bg-[#F2F4F6]"
                     >
@@ -118,12 +122,12 @@ export function ExercisePicker({
                       </span>
                     </button>
                   </li>
-                )
+                );
               })
             )}
           </ul>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
+  );
 }

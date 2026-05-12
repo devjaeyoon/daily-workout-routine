@@ -1,11 +1,11 @@
-import { formatRestLabel, formatTimer } from '../lib/format'
-import { Button } from './ui/button'
+import { formatRestLabel, formatTimer } from '../lib/format';
+import { Button } from './ui/button';
 
 type RestTimerBarProps = {
-  exerciseName: string
-  remaining: number
-  onDismiss: () => void
-}
+  exerciseName: string;
+  remaining: number;
+  onDismiss: () => void;
+};
 
 export function RestTimerBar({
   exerciseName,
@@ -43,5 +43,5 @@ export function RestTimerBar({
         </div>
       </div>
     </div>
-  )
+  );
 }

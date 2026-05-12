@@ -1,7 +1,7 @@
 export type ExerciseDef = {
-  name: string
-  category: string
-}
+  name: string;
+  category: string;
+};
 
 /** 기획서 3.2 기본 운동 목록 + 부위 필터용 카테고리 */
 export const EXERCISE_CATALOG: ExerciseDef[] = [
@@ -21,9 +21,9 @@ export const EXERCISE_CATALOG: ExerciseDef[] = [
   { name: '루마니안 데드 리프트', category: '하체' },
   { name: '레그 프레스', category: '하체' },
   { name: '레그 익스텐션', category: '하체' },
-]
+];
 
 export const EXERCISE_CATEGORIES = [
   '전체',
   ...Array.from(new Set(EXERCISE_CATALOG.map((e) => e.category))).sort(),
-] as const
+] as const;

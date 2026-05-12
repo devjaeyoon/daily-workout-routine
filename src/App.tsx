@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useState } from 'react'
-import { ExerciseLogCard } from './components/ExerciseLogCard'
-import { ExercisePicker } from './components/ExercisePicker'
-import { RestTimerBar } from './components/RestTimerBar'
-import { Button } from './components/ui/button'
-import { useRestTimer } from './hooks/useRestTimer'
-import { buildPromptText } from './lib/format'
-import type { SetLog, WorkoutExercise } from './types/workout'
+import { useCallback, useMemo, useState } from 'react';
+import { ExerciseLogCard } from './components/ExerciseLogCard';
+import { ExercisePicker } from './components/ExercisePicker';
+import { RestTimerBar } from './components/RestTimerBar';
+import { Button } from './components/ui/button';
+import { useRestTimer } from './hooks/useRestTimer';
+import { buildPromptText } from './lib/format';
+import type { SetLog, WorkoutExercise } from './types/workout';
 
 function createDefaultSet(setNumber: number, prev?: SetLog): SetLog {
   return {
@@ -14,23 +14,23 @@ function createDefaultSet(setNumber: number, prev?: SetLog): SetLog {
     reps: prev?.reps ?? 10,
     rir: prev?.rir ?? 2,
     restTime: prev?.restTime ?? 90,
-  }
+  };
 }
 
 function renumberSets(sets: SetLog[]): SetLog[] {
-  return sets.map((s, i) => ({ ...s, setNumber: i + 1 }))
+  return sets.map((s, i) => ({ ...s, setNumber: i + 1 }));
 }
 
 export default function App() {
-  const [workoutLogs, setWorkoutLogs] = useState<WorkoutExercise[]>([])
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [copyDone, setCopyDone] = useState(false)
-  const { active, start, dismiss } = useRestTimer()
+  const [workoutLogs, setWorkoutLogs] = useState<WorkoutExercise[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [copyDone, setCopyDone] = useState(false);
+  const { active, start, dismiss } = useRestTimer();
 
   const alreadyAdded = useMemo(
     () => new Set(workoutLogs.map((l) => l.exerciseName)),
     [workoutLogs],
-  )
+  );
 
   const addExercise = useCallback((name: string, category: string) => {
     setWorkoutLogs((prev) => [
@@ -41,69 +41,72 @@ export default function App() {
         category,
         sets: [createDefaultSet(1)],
       },
-    ])
-  }, [])
+    ]);
+  }, []);
 
   const removeExercise = useCallback((id: string) => {
-    setWorkoutLogs((prev) => prev.filter((ex) => ex.id !== id))
-  }, [])
+    setWorkoutLogs((prev) => prev.filter((ex) => ex.id !== id));
+  }, []);
 
   const updateSet = useCallback(
     (exerciseId: string, setIndex: number, patch: Partial<SetLog>) => {
       setWorkoutLogs((prev) =>
         prev.map((ex) => {
-          if (ex.id !== exerciseId) return ex
+          if (ex.id !== exerciseId) return ex;
           const sets = ex.sets.map((s, i) =>
             i === setIndex ? { ...s, ...patch } : s,
-          )
-          return { ...ex, sets }
+          );
+          return { ...ex, sets };
         }),
-      )
+      );
     },
     [],
-  )
+  );
 
   const addSet = useCallback((exerciseId: string) => {
     setWorkoutLogs((prev) =>
       prev.map((ex) => {
-        if (ex.id !== exerciseId) return ex
-        const last = ex.sets[ex.sets.length - 1]
-        const next = createDefaultSet(ex.sets.length + 1, last)
-        return { ...ex, sets: [...ex.sets, next] }
+        if (ex.id !== exerciseId) return ex;
+        const last = ex.sets[ex.sets.length - 1];
+        const next = createDefaultSet(ex.sets.length + 1, last);
+        return { ...ex, sets: [...ex.sets, next] };
       }),
-    )
-  }, [])
+    );
+  }, []);
 
   const removeSet = useCallback((exerciseId: string, setIndex: number) => {
     setWorkoutLogs((prev) =>
       prev.map((ex) => {
-        if (ex.id !== exerciseId) return ex
-        const filtered = ex.sets.filter((_, i) => i !== setIndex)
-        return { ...ex, sets: renumberSets(filtered) }
+        if (ex.id !== exerciseId) return ex;
+        const filtered = ex.sets.filter((_, i) => i !== setIndex);
+        return { ...ex, sets: renumberSets(filtered) };
       }),
-    )
-  }, [])
+    );
+  }, []);
 
   const handleCompleteSet = useCallback(
     (exerciseName: string, set: SetLog) => {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-        void Notification.requestPermission()
+      if (
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'default'
+      ) {
+        void Notification.requestPermission();
       }
-      start(set.restTime, exerciseName)
+      start(set.restTime, exerciseName);
     },
     [start],
-  )
+  );
 
   const copyPrompt = useCallback(async () => {
-    const text = buildPromptText(new Date(), workoutLogs)
+    const text = buildPromptText(new Date(), workoutLogs);
     try {
-      await navigator.clipboard.writeText(text)
-      setCopyDone(true)
-      window.setTimeout(() => setCopyDone(false), 2000)
+      await navigator.clipboard.writeText(text);
+      setCopyDone(true);
+      window.setTimeout(() => setCopyDone(false), 2000);
     } catch {
-      setCopyDone(false)
+      setCopyDone(false);
     }
-  }, [workoutLogs])
+  }, [workoutLogs]);
 
   return (
     <div className="min-h-dvh pb-28">
@@ -142,8 +145,8 @@ export default function App() {
               아직 추가된 운동이 없어요
             </p>
             <p className="mt-2 text-[15px] leading-relaxed text-[#8B95A1]">
-              상단의 <span className="font-bold text-[#3182F6]">운동 추가</span>로
-              오늘 루틴을 만들어 보세요.
+              상단의 <span className="font-bold text-[#3182F6]">운동 추가</span>
+              로 오늘 루틴을 만들어 보세요.
             </p>
           </div>
         ) : (
@@ -176,5 +179,5 @@ export default function App() {
         />
       ) : null}
     </div>
-  )
+  );
 }

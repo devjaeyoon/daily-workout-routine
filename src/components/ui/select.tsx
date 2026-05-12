@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- Radix Select 루트 프리미티브 재노출 */
-import * as SelectPrimitive from '@radix-ui/react-select'
-import type { ComponentPropsWithoutRef } from 'react'
-import { cn } from '../../lib/utils'
+import * as SelectPrimitive from '@radix-ui/react-select';
+import type { ComponentPropsWithoutRef } from 'react';
+import { cn } from '../../lib/utils';
 
 function ChevronDownIcon({ className }: { className?: string }) {
   return (
@@ -19,12 +19,12 @@ function ChevronDownIcon({ className }: { className?: string }) {
     >
       <path d="m6 9 6 6 6-6" />
     </svg>
-  )
+  );
 }
 
-export const Select = SelectPrimitive.Root
-export const SelectGroup = SelectPrimitive.Group
-export const SelectValue = SelectPrimitive.Value
+export const Select = SelectPrimitive.Root;
+export const SelectGroup = SelectPrimitive.Group;
+export const SelectValue = SelectPrimitive.Value;
 
 export function SelectTrigger({
   className,
@@ -44,7 +44,7 @@ export function SelectTrigger({
         <ChevronDownIcon className="size-5 shrink-0 text-[#8B95A1]" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
-  )
+  );
 }
 
 export function SelectContent({
@@ -72,7 +72,7 @@ export function SelectContent({
         </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
-  )
+  );
 }
 
 export function SelectItem({
@@ -90,5 +90,5 @@ export function SelectItem({
     >
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
-  )
+  );
 }

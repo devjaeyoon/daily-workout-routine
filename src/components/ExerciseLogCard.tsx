@@ -1,20 +1,20 @@
-import * as Popover from '@radix-ui/react-popover'
-import type { SetLog, WorkoutExercise } from '../types/workout'
-import { Button } from './ui/button'
-import { Card } from './ui/card'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import * as Popover from '@radix-ui/react-popover';
+import type { SetLog, WorkoutExercise } from '../types/workout';
+import { Button } from './ui/button';
+import { Card } from './ui/card';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 
-const REST_PRESETS = [60, 90, 120, 150, 180] as const
+const REST_PRESETS = [60, 90, 120, 150, 180] as const;
 
 type ExerciseLogCardProps = {
-  exercise: WorkoutExercise
-  onRemoveExercise: () => void
-  onUpdateSet: (setIndex: number, patch: Partial<SetLog>) => void
-  onAddSet: () => void
-  onRemoveSet: (setIndex: number) => void
-  onCompleteSet: (set: SetLog) => void
-}
+  exercise: WorkoutExercise;
+  onRemoveExercise: () => void;
+  onUpdateSet: (setIndex: number, patch: Partial<SetLog>) => void;
+  onAddSet: () => void;
+  onRemoveSet: (setIndex: number) => void;
+  onCompleteSet: (set: SetLog) => void;
+};
 
 function Stepper({
   label,
@@ -25,16 +25,16 @@ function Stepper({
   max,
   suffix,
 }: {
-  label: string
-  value: number
-  onChange: (n: number) => void
-  step: number
-  min: number
-  max: number
-  suffix?: string
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  step: number;
+  min: number;
+  max: number;
+  suffix?: string;
 }) {
-  const dec = () => onChange(Math.max(min, value - step))
-  const inc = () => onChange(Math.min(max, value + step))
+  const dec = () => onChange(Math.max(min, value - step));
+  const inc = () => onChange(Math.min(max, value + step));
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
@@ -54,10 +54,10 @@ function Stepper({
             className="pr-10 text-center text-[20px] tabular-nums"
             value={Number.isFinite(value) ? String(value) : ''}
             onChange={(e) => {
-              const v = Number(e.target.value)
-              if (e.target.value === '') return
-              if (Number.isNaN(v)) return
-              onChange(Math.min(max, Math.max(min, v)))
+              const v = Number(e.target.value);
+              if (e.target.value === '') return;
+              if (Number.isNaN(v)) return;
+              onChange(Math.min(max, Math.max(min, v)));
             }}
             aria-label={label}
           />
@@ -78,7 +78,7 @@ function Stepper({
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 export function ExerciseLogCard({
@@ -200,15 +200,22 @@ export function ExerciseLogCard({
                           max={600}
                           value={set.restTime}
                           onChange={(e) => {
-                            const v = Number(e.target.value)
-                            if (Number.isNaN(v)) return
+                            const v = Number(e.target.value);
+                            if (Number.isNaN(v)) return;
                             onUpdateSet(idx, {
-                              restTime: Math.min(600, Math.max(0, Math.round(v))),
-                            })
+                              restTime: Math.min(
+                                600,
+                                Math.max(0, Math.round(v)),
+                              ),
+                            });
                           }}
                         />
                         <Popover.Close asChild>
-                          <Button type="button" className="mt-3 w-full" variant="primary">
+                          <Button
+                            type="button"
+                            className="mt-3 w-full"
+                            variant="primary"
+                          >
                             적용
                           </Button>
                         </Popover.Close>
@@ -241,5 +248,5 @@ export function ExerciseLogCard({
         세트 추가
       </Button>
     </Card>
-  )
+  );
 }
