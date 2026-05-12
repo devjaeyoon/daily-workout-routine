@@ -137,7 +137,7 @@ export function ExerciseLogCard({
                 label="중량"
                 value={set.weight}
                 onChange={(n) => onUpdateSet(idx, { weight: n })}
-                step={2.5}
+                step={5}
                 min={0}
                 max={500}
                 suffix="kg"
