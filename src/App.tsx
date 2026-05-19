@@ -118,7 +118,7 @@ export default function App() {
                 오늘의 운동
               </h1>
               <p className="mt-0.5 text-[14px] text-[#8B95A1]">
-                세트별로 기록하고 GPT용 텍스트로 복사하세요.
+                세트별로 기록한 뒤 기록을 복사하세요.
               </p>
             </div>
           </div>
@@ -132,7 +132,7 @@ export default function App() {
               onClick={() => void copyPrompt()}
               disabled={workoutLogs.length === 0}
             >
-              {copyDone ? '복사됨' : 'GPT용 복사'}
+              {copyDone ? '복사됨' : '기록 복사'}
             </Button>
           </div>
         </div>
