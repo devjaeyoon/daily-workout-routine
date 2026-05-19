@@ -28,12 +28,12 @@ export function buildPromptText(date: Date, logs: WorkoutExercise[]): string {
   const blocks = logs.map((ex, idx) => {
     const lines = ex.sets.map((st) => {
       const rest = formatRestLabel(st.restTime);
-      return `\t\t- ${st.setNumber}세트: ${st.weight}kg ${st.reps}회 (${st.rir}PIR, 휴식 ${rest})`;
+      return `\t\t- ${st.setNumber}세트: ${st.weight}kg ${st.reps}회 (${st.rir}RIR, 휴식 ${rest})`;
     });
     return `\t${idx + 1}. ${ex.exerciseName}\n${lines.join('\n')}`;
   });
 
-  const footer = `\n\t\t위 세트별 중량 및 반복 수 변화, RIR(PIR), 휴식 시간을 바탕으로 오늘의 근비대 훈련 볼륨과 강도 설정이 적절했는지 분석해 줘.`;
+  const footer = `\n\t\t위 세트별 중량 및 반복 수 변화, RIR, 휴식 시간을 바탕으로 오늘의 근비대 훈련 볼륨과 강도 설정이 적절했는지 분석해 줘.`;
 
   return `${header}\n\n${blocks.join('\n\n')}${footer}`;
 }
