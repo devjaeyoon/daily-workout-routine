@@ -52,10 +52,15 @@ function Stepper({
           <Input
             inputMode="decimal"
             className="pr-10 text-center text-[20px] tabular-nums"
-            value={Number.isFinite(value) ? String(value) : ''}
+            value={
+              Number.isFinite(value) && value !== 0 ? String(value) : ''
+            }
             onChange={(e) => {
+              if (e.target.value === '') {
+                onChange(min);
+                return;
+              }
               const v = Number(e.target.value);
-              if (e.target.value === '') return;
               if (Number.isNaN(v)) return;
               onChange(Math.min(max, Math.max(min, v)));
             }}
