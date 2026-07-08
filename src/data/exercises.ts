@@ -13,6 +13,7 @@ export const EXERCISE_CATALOG: ExerciseDef[] = [
   { name: '바벨 컬', category: '팔' },
   { name: '바벨 숄더 프레스(스미스 머신)', category: '어깨' },
   { name: '바벨 로우', category: '등' },
+  { name: '원암 덤벨 로우', category: '등' },
   { name: '랫 풀 다운', category: '등' },
   { name: '시티드 케이블 로우', category: '등' },
   { name: '페이스 풀', category: '등' },
