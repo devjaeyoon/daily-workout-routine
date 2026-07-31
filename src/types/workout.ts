@@ -12,3 +12,12 @@ export type WorkoutExercise = {
   category: string;
   sets: SetLog[];
 };
+
+export type WorkoutSession = {
+  workoutDate: string;
+  exercises: WorkoutExercise[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WorkoutSessionsByDate = Record<string, WorkoutSession>;
