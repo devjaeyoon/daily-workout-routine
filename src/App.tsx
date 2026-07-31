@@ -7,11 +7,9 @@ import {
 import { ExerciseLogCard } from './components/ExerciseLogCard';
 import { ExercisePicker } from './components/ExercisePicker';
 import { RecentWorkouts } from './components/RecentWorkouts';
-import { RestTimerBar } from './components/RestTimerBar';
 import { WorkoutHeatmap } from './components/WorkoutHeatmap';
 import { WorkoutHistoryDialog } from './components/WorkoutHistoryDialog';
 import { Button } from './components/ui/button';
-import { useRestTimer } from './hooks/useRestTimer';
 import { useSupabaseAuth } from './hooks/useSupabaseAuth';
 import {
   useWorkoutSessions,
@@ -58,7 +56,6 @@ export default function App() {
   const [selectedHistoryDate, setSelectedHistoryDate] = useState<string | null>(
     null,
   );
-  const { active, start, dismiss } = useRestTimer();
   const {
     user,
     status: authStatus,
@@ -146,19 +143,6 @@ export default function App() {
     );
   }, [setWorkoutLogs]);
 
-  const handleCompleteSet = useCallback(
-    (exerciseName: string, set: SetLog) => {
-      if (
-        typeof Notification !== 'undefined' &&
-        Notification.permission === 'default'
-      ) {
-        void Notification.requestPermission();
-      }
-      start(set.restTime, exerciseName);
-    },
-    [start],
-  );
-
   const copyPrompt = useCallback(async () => {
     const text = buildPromptText(parseDateKey(currentDate), workoutLogs);
     try {
@@ -173,7 +157,6 @@ export default function App() {
   const selectedHistory = selectedHistoryDate
     ? sessions[selectedHistoryDate] ?? null
     : null;
-  const timerVisible = Boolean(active && active.remaining > 0);
 
   const changeTab = (tab: AppTab) => {
     setActiveTab(tab);
@@ -181,13 +164,7 @@ export default function App() {
   };
 
   return (
-    <div
-      className={
-        timerVisible
-          ? 'min-h-dvh pb-52'
-          : 'min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))]'
-      }
-    >
+    <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))]">
       <header className="sticky top-0 z-30 border-b border-[#E5E8EB]/80 bg-[#F2F4F6]/90 px-4 py-4 backdrop-blur-md">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
@@ -282,9 +259,6 @@ export default function App() {
                 onUpdateSet={(i, p) => updateSet(ex.id, i, p)}
                 onAddSet={() => addSet(ex.id)}
                 onRemoveSet={(i) => removeSet(ex.id, i)}
-                onCompleteSet={(set) =>
-                  handleCompleteSet(ex.exerciseName, set)
-                }
               />
             ))
           )
@@ -328,17 +302,7 @@ export default function App() {
         onClose={() => setSelectedHistoryDate(null)}
       />
 
-      {!timerVisible ? (
-        <BottomNavigation activeTab={activeTab} onTabChange={changeTab} />
-      ) : null}
-
-      {timerVisible && active ? (
-        <RestTimerBar
-          exerciseName={active.exerciseName}
-          remaining={active.remaining}
-          onDismiss={dismiss}
-        />
-      ) : null}
+      <BottomNavigation activeTab={activeTab} onTabChange={changeTab} />
     </div>
   );
 }

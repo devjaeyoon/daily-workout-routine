@@ -1,11 +1,8 @@
-import * as Popover from '@radix-ui/react-popover';
 import type { SetLog, WorkoutExercise } from '../types/workout';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-
-const REST_PRESETS = [60, 90, 120, 150, 180] as const;
 
 type ExerciseLogCardProps = {
   exercise: WorkoutExercise;
@@ -13,7 +10,6 @@ type ExerciseLogCardProps = {
   onUpdateSet: (setIndex: number, patch: Partial<SetLog>) => void;
   onAddSet: () => void;
   onRemoveSet: (setIndex: number) => void;
-  onCompleteSet: (set: SetLog) => void;
 };
 
 function Stepper({
@@ -92,7 +88,6 @@ export function ExerciseLogCard({
   onUpdateSet,
   onAddSet,
   onRemoveSet,
-  onCompleteSet,
 }: ExerciseLogCardProps) {
   return (
     <Card className="space-y-4">
@@ -163,83 +158,18 @@ export function ExerciseLogCard({
                 min={0}
                 max={10}
               />
-              <div className="space-y-1.5">
-                <Label>휴식</Label>
-                <div className="flex flex-wrap gap-2">
-                  {REST_PRESETS.map((sec) => (
-                    <Button
-                      key={sec}
-                      type="button"
-                      variant={set.restTime === sec ? 'primary' : 'outline'}
-                      className="h-11 min-w-[4.5rem] rounded-2xl px-3 text-[14px]"
-                      onClick={() => onUpdateSet(idx, { restTime: sec })}
-                    >
-                      {sec >= 60 ? `${sec / 60}분` : `${sec}초`}
-                    </Button>
-                  ))}
-                  <Popover.Root>
-                    <Popover.Trigger asChild>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="h-11 rounded-2xl px-3 text-[14px]"
-                      >
-                        직접 입력
-                      </Button>
-                    </Popover.Trigger>
-                    <Popover.Portal>
-                      <Popover.Content
-                        className="z-50 w-[min(100vw-2rem,280px)] rounded-2xl border border-[#E5E8EB] bg-white p-4 shadow-[0_12px_32px_rgb(0_0_0/0.14)] focus:outline-none"
-                        sideOffset={8}
-                        align="start"
-                      >
-                        <Label htmlFor={`rest-custom-${exercise.id}-${idx}`}>
-                          휴식(초)
-                        </Label>
-                        <Input
-                          id={`rest-custom-${exercise.id}-${idx}`}
-                          className="mt-2"
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          max={600}
-                          value={set.restTime}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            if (Number.isNaN(v)) return;
-                            onUpdateSet(idx, {
-                              restTime: Math.min(
-                                600,
-                                Math.max(0, Math.round(v)),
-                              ),
-                            });
-                          }}
-                        />
-                        <Popover.Close asChild>
-                          <Button
-                            type="button"
-                            className="mt-3 w-full"
-                            variant="primary"
-                          >
-                            적용
-                          </Button>
-                        </Popover.Close>
-                        <Popover.Arrow className="fill-white" />
-                      </Popover.Content>
-                    </Popover.Portal>
-                  </Popover.Root>
-                </div>
-              </div>
+              <Stepper
+                label="휴식 시간"
+                value={set.restTime}
+                onChange={(n) =>
+                  onUpdateSet(idx, { restTime: Math.round(n) })
+                }
+                step={30}
+                min={0}
+                max={600}
+                suffix="초"
+              />
             </div>
-
-            <Button
-              type="button"
-              variant="secondary"
-              className="mt-4 w-full"
-              onClick={() => onCompleteSet(set)}
-            >
-              세트 완료 · 휴식 시작
-            </Button>
           </div>
         ))}
       </div>
