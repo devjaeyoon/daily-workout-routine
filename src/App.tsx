@@ -1,11 +1,25 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AccountDialog } from './components/AccountDialog';
+import {
+  BottomNavigation,
+  type AppTab,
+} from './components/BottomNavigation';
 import { ExerciseLogCard } from './components/ExerciseLogCard';
 import { ExercisePicker } from './components/ExercisePicker';
+import { RecentWorkouts } from './components/RecentWorkouts';
 import { RestTimerBar } from './components/RestTimerBar';
+import { WorkoutHeatmap } from './components/WorkoutHeatmap';
+import { WorkoutHistoryDialog } from './components/WorkoutHistoryDialog';
 import { Button } from './components/ui/button';
 import { useRestTimer } from './hooks/useRestTimer';
+import { useSupabaseAuth } from './hooks/useSupabaseAuth';
+import {
+  useWorkoutSessions,
+  type SyncStatus,
+} from './hooks/useWorkoutSessions';
 import { buildPromptText } from './lib/format';
-import type { SetLog, WorkoutExercise } from './types/workout';
+import { formatWorkoutDate, parseDateKey } from './lib/workoutDate';
+import type { SetLog } from './types/workout';
 
 function createDefaultSet(setNumber: number, prev?: SetLog): SetLog {
   return {
@@ -21,15 +35,63 @@ function renumberSets(sets: SetLog[]): SetLog[] {
   return sets.map((s, i) => ({ ...s, setNumber: i + 1 }));
 }
 
+function syncStatusLabel(status: SyncStatus): string {
+  switch (status) {
+    case 'syncing':
+      return '동기화 중';
+    case 'synced':
+      return '동기화됨';
+    case 'offline':
+      return '오프라인 저장';
+    case 'error':
+      return '저장 확인 필요';
+    default:
+      return '이 기기에 저장됨';
+  }
+}
+
 export default function App() {
-  const [workoutLogs, setWorkoutLogs] = useState<WorkoutExercise[]>([]);
+  const [activeTab, setActiveTab] = useState<AppTab>('today');
+  const [accountOpen, setAccountOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [copyDone, setCopyDone] = useState(false);
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string | null>(
+    null,
+  );
   const { active, start, dismiss } = useRestTimer();
+  const {
+    user,
+    status: authStatus,
+    signIn,
+    signUp,
+    signOut,
+  } = useSupabaseAuth();
+  const {
+    currentDate,
+    currentLogs: workoutLogs,
+    sessions,
+    setCurrentLogs: setWorkoutLogs,
+    syncStatus,
+    lastSyncedAt,
+    syncFromRemote,
+  } = useWorkoutSessions(user?.id);
+
+  useEffect(() => {
+    if (!navigator.storage?.persist) return;
+    void navigator.storage.persist();
+  }, []);
 
   const alreadyAdded = useMemo(
     () => new Set(workoutLogs.map((l) => l.exerciseName)),
     [workoutLogs],
+  );
+  const recentSessions = useMemo(
+    () =>
+      Object.values(sessions)
+        .filter((session) => session.exercises.length > 0)
+        .sort((a, b) => b.workoutDate.localeCompare(a.workoutDate))
+        .slice(0, 10),
+    [sessions],
   );
 
   const addExercise = useCallback((name: string, category: string) => {
@@ -42,11 +104,11 @@ export default function App() {
         sets: [createDefaultSet(1)],
       },
     ]);
-  }, []);
+  }, [setWorkoutLogs]);
 
   const removeExercise = useCallback((id: string) => {
     setWorkoutLogs((prev) => prev.filter((ex) => ex.id !== id));
-  }, []);
+  }, [setWorkoutLogs]);
 
   const updateSet = useCallback(
     (exerciseId: string, setIndex: number, patch: Partial<SetLog>) => {
@@ -60,7 +122,7 @@ export default function App() {
         }),
       );
     },
-    [],
+    [setWorkoutLogs],
   );
 
   const addSet = useCallback((exerciseId: string) => {
@@ -72,7 +134,7 @@ export default function App() {
         return { ...ex, sets: [...ex.sets, next] };
       }),
     );
-  }, []);
+  }, [setWorkoutLogs]);
 
   const removeSet = useCallback((exerciseId: string, setIndex: number) => {
     setWorkoutLogs((prev) =>
@@ -82,7 +144,7 @@ export default function App() {
         return { ...ex, sets: renumberSets(filtered) };
       }),
     );
-  }, []);
+  }, [setWorkoutLogs]);
 
   const handleCompleteSet = useCallback(
     (exerciseName: string, set: SetLog) => {
@@ -98,7 +160,7 @@ export default function App() {
   );
 
   const copyPrompt = useCallback(async () => {
-    const text = buildPromptText(new Date(), workoutLogs);
+    const text = buildPromptText(parseDateKey(currentDate), workoutLogs);
     try {
       await navigator.clipboard.writeText(text);
       setCopyDone(true);
@@ -106,61 +168,138 @@ export default function App() {
     } catch {
       setCopyDone(false);
     }
-  }, [workoutLogs]);
+  }, [currentDate, workoutLogs]);
+
+  const selectedHistory = selectedHistoryDate
+    ? sessions[selectedHistoryDate] ?? null
+    : null;
+  const timerVisible = Boolean(active && active.remaining > 0);
+
+  const changeTab = (tab: AppTab) => {
+    setActiveTab(tab);
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0 }));
+  };
 
   return (
-    <div className="min-h-dvh pb-28">
+    <div
+      className={
+        timerVisible
+          ? 'min-h-dvh pb-52'
+          : 'min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))]'
+      }
+    >
       <header className="sticky top-0 z-30 border-b border-[#E5E8EB]/80 bg-[#F2F4F6]/90 px-4 py-4 backdrop-blur-md">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <h1 className="text-[22px] font-bold tracking-tight text-[#191F28]">
-                오늘의 운동
+                {activeTab === 'today' ? '오늘의 운동' : '운동 기록'}
               </h1>
-              <p className="mt-0.5 text-[14px] text-[#8B95A1]">
-                세트별로 기록한 뒤 기록을 복사하세요.
+              <p className="mt-0.5 text-[14px] font-semibold text-[#8B95A1]">
+                {activeTab === 'today'
+                  ? `${formatWorkoutDate(currentDate)} · 새벽 4시 기준`
+                  : '운동한 날과 세트 기록을 모아봤어요'}
               </p>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => setPickerOpen(true)}>
-              운동 추가
-            </Button>
-            <Button
+            <button
               type="button"
-              variant="secondary"
-              onClick={() => void copyPrompt()}
-              disabled={workoutLogs.length === 0}
+              className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-[#4E5968] shadow-sm transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3182F6]"
+              aria-label={`계정 및 동기화 열기, ${syncStatusLabel(syncStatus)}`}
+              onClick={() => setAccountOpen(true)}
             >
-              {copyDone ? '복사됨' : '기록 복사'}
-            </Button>
+              <svg
+                viewBox="0 0 24 24"
+                className="size-6"
+                aria-hidden="true"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21a8 8 0 0 1 16 0" />
+              </svg>
+              <span
+                className={`absolute bottom-0.5 right-0.5 size-3 rounded-full border-2 border-white ${
+                  authStatus !== 'signed-in'
+                    ? 'bg-[#B0B8C1]'
+                    : syncStatus === 'error'
+                      ? 'bg-[#F04452]'
+                      : syncStatus === 'syncing' || syncStatus === 'offline'
+                        ? 'bg-[#FFB020]'
+                        : 'bg-[#20C997]'
+                }`}
+              />
+            </button>
           </div>
+          {activeTab === 'today' ? (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => setPickerOpen(true)}>
+                운동 추가
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void copyPrompt()}
+                disabled={workoutLogs.length === 0}
+              >
+                {copyDone ? '복사됨' : '기록 복사'}
+              </Button>
+              {authStatus !== 'signed-in' ? (
+                <button
+                  type="button"
+                  className="rounded-3xl px-3 py-2 text-[13px] font-semibold text-[#8B95A1] hover:bg-black/5"
+                  onClick={() => setAccountOpen(true)}
+                >
+                  로그인하고 백업
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </header>
 
       <main className="mx-auto max-w-lg space-y-4 px-4 py-5">
-        {workoutLogs.length === 0 ? (
-          <div className="rounded-[24px] bg-white px-6 py-16 text-center shadow-[0_2px_12px_rgb(0_0_0/0.06)]">
-            <p className="text-[17px] font-semibold text-[#191F28]">
-              아직 추가된 운동이 없어요
-            </p>
-            <p className="mt-2 text-[15px] leading-relaxed text-[#8B95A1]">
-              상단의 <span className="font-bold text-[#3182F6]">운동 추가</span>
-              로 오늘 루틴을 만들어 보세요.
-            </p>
-          </div>
+        {activeTab === 'today' ? (
+          workoutLogs.length === 0 ? (
+            <div className="rounded-[24px] bg-white px-6 py-16 text-center shadow-[0_2px_12px_rgb(0_0_0/0.06)]">
+              <p className="text-[17px] font-semibold text-[#191F28]">
+                아직 추가된 운동이 없어요
+              </p>
+              <p className="mt-2 text-[15px] leading-relaxed text-[#8B95A1]">
+                상단의{' '}
+                <span className="font-bold text-[#3182F6]">운동 추가</span>로
+                오늘 루틴을 만들어 보세요.
+              </p>
+            </div>
+          ) : (
+            workoutLogs.map((ex) => (
+              <ExerciseLogCard
+                key={ex.id}
+                exercise={ex}
+                onRemoveExercise={() => removeExercise(ex.id)}
+                onUpdateSet={(i, p) => updateSet(ex.id, i, p)}
+                onAddSet={() => addSet(ex.id)}
+                onRemoveSet={(i) => removeSet(ex.id, i)}
+                onCompleteSet={(set) =>
+                  handleCompleteSet(ex.exerciseName, set)
+                }
+              />
+            ))
+          )
         ) : (
-          workoutLogs.map((ex) => (
-            <ExerciseLogCard
-              key={ex.id}
-              exercise={ex}
-              onRemoveExercise={() => removeExercise(ex.id)}
-              onUpdateSet={(i, p) => updateSet(ex.id, i, p)}
-              onAddSet={() => addSet(ex.id)}
-              onRemoveSet={(i) => removeSet(ex.id, i)}
-              onCompleteSet={(set) => handleCompleteSet(ex.exerciseName, set)}
+          <>
+            <WorkoutHeatmap
+              sessions={sessions}
+              currentDate={currentDate}
+              onSelectDate={setSelectedHistoryDate}
             />
-          ))
+            <RecentWorkouts
+              sessions={recentSessions}
+              onSelectDate={setSelectedHistoryDate}
+            />
+          </>
         )}
       </main>
 
@@ -171,7 +310,29 @@ export default function App() {
         onPick={addExercise}
       />
 
-      {active && active.remaining > 0 ? (
+      <AccountDialog
+        open={accountOpen}
+        onOpenChange={setAccountOpen}
+        authStatus={authStatus}
+        syncStatus={syncStatus}
+        email={user?.email}
+        lastSyncedAt={lastSyncedAt}
+        onSignIn={signIn}
+        onSignUp={signUp}
+        onSignOut={signOut}
+        onSync={syncFromRemote}
+      />
+
+      <WorkoutHistoryDialog
+        session={selectedHistory}
+        onClose={() => setSelectedHistoryDate(null)}
+      />
+
+      {!timerVisible ? (
+        <BottomNavigation activeTab={activeTab} onTabChange={changeTab} />
+      ) : null}
+
+      {timerVisible && active ? (
         <RestTimerBar
           exerciseName={active.exerciseName}
           remaining={active.remaining}
