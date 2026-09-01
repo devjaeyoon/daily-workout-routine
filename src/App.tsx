@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountDialog } from './components/AccountDialog';
 import {
   BottomNavigation,
@@ -6,16 +6,17 @@ import {
 } from './components/BottomNavigation';
 import { ExerciseLogCard } from './components/ExerciseLogCard';
 import { ExercisePicker } from './components/ExercisePicker';
+import { ExerciseQuickNav } from './components/ExerciseQuickNav';
 import { RecentWorkouts } from './components/RecentWorkouts';
 import { WorkoutHeatmap } from './components/WorkoutHeatmap';
 import { WorkoutHistoryDialog } from './components/WorkoutHistoryDialog';
-import { Button } from './components/ui/button';
 import { useSupabaseAuth } from './hooks/useSupabaseAuth';
 import {
   useWorkoutSessions,
   type SyncStatus,
 } from './hooks/useWorkoutSessions';
 import { buildPromptText } from './lib/format';
+import { cn } from './lib/utils';
 import { formatWorkoutDate, parseDateKey } from './lib/workoutDate';
 import type { SetLog } from './types/workout';
 
@@ -48,6 +49,21 @@ function syncStatusLabel(status: SyncStatus): string {
   }
 }
 
+function exerciseCardId(exerciseId: string): string {
+  return `exercise-card-${exerciseId}`;
+}
+
+type ScrollRequest = {
+  exerciseId: string;
+  sequence: number;
+};
+
+type ExpansionState = {
+  date: string;
+  exerciseId: string | null;
+  touched: boolean;
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('today');
   const [accountOpen, setAccountOpen] = useState(false);
@@ -72,11 +88,75 @@ export default function App() {
     lastSyncedAt,
     syncFromRemote,
   } = useWorkoutSessions(user?.id);
+  const [expansionState, setExpansionState] = useState<ExpansionState>(
+    () => ({
+      date: currentDate,
+      exerciseId: workoutLogs.at(-1)?.id ?? null,
+      touched: false,
+    }),
+  );
+  const [scrollRequest, setScrollRequest] = useState<ScrollRequest | null>(
+    null,
+  );
+  const scrollSequenceRef = useRef(0);
+  const copyDoneTimerRef = useRef<number | null>(null);
+
+  const expandedExerciseId = useMemo(() => {
+    const lastExerciseId = workoutLogs.at(-1)?.id ?? null;
+    if (expansionState.date !== currentDate) return lastExerciseId;
+    if (expansionState.exerciseId === null) {
+      return expansionState.touched ? null : lastExerciseId;
+    }
+    return workoutLogs.some(
+      (exercise) => exercise.id === expansionState.exerciseId,
+    )
+      ? expansionState.exerciseId
+      : lastExerciseId;
+  }, [currentDate, expansionState, workoutLogs]);
 
   useEffect(() => {
     if (!navigator.storage?.persist) return;
     void navigator.storage.persist();
   }, []);
+
+  useEffect(
+    () => () => {
+      if (copyDoneTimerRef.current !== null) {
+        window.clearTimeout(copyDoneTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (
+      !scrollRequest ||
+      expandedExerciseId !== scrollRequest.exerciseId
+    ) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const card = document.getElementById(
+        exerciseCardId(scrollRequest.exerciseId),
+      );
+      if (card) {
+        const reduceMotion = window.matchMedia(
+          '(prefers-reduced-motion: reduce)',
+        ).matches;
+        card.scrollIntoView({
+          behavior: reduceMotion ? 'auto' : 'smooth',
+          block: 'start',
+        });
+      }
+
+      setScrollRequest((current) =>
+        current?.sequence === scrollRequest.sequence ? null : current,
+      );
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [expandedExerciseId, scrollRequest]);
 
   const alreadyAdded = useMemo(
     () => new Set(workoutLogs.map((l) => l.exerciseName)),
@@ -91,21 +171,80 @@ export default function App() {
     [sessions],
   );
 
-  const addExercise = useCallback((name: string, category: string) => {
-    setWorkoutLogs((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        exerciseName: name,
-        category,
-        sets: [createDefaultSet(1)],
-      },
-    ]);
-  }, [setWorkoutLogs]);
+  const requestExerciseScroll = useCallback((exerciseId: string) => {
+    scrollSequenceRef.current += 1;
+    setScrollRequest({
+      exerciseId,
+      sequence: scrollSequenceRef.current,
+    });
+  }, []);
 
-  const removeExercise = useCallback((id: string) => {
-    setWorkoutLogs((prev) => prev.filter((ex) => ex.id !== id));
-  }, [setWorkoutLogs]);
+  const addExercise = useCallback(
+    (name: string, category: string) => {
+      const id = crypto.randomUUID();
+      setWorkoutLogs((prev) => [
+        ...prev,
+        {
+          id,
+          exerciseName: name,
+          category,
+          sets: [createDefaultSet(1)],
+        },
+      ]);
+      setExpansionState({
+        date: currentDate,
+        exerciseId: id,
+        touched: true,
+      });
+      requestExerciseScroll(id);
+    },
+    [currentDate, requestExerciseScroll, setWorkoutLogs],
+  );
+
+  const removeExercise = useCallback(
+    (id: string) => {
+      const removedIndex = workoutLogs.findIndex(
+        (exercise) => exercise.id === id,
+      );
+      if (removedIndex < 0) return;
+
+      const nextExpandedId =
+        workoutLogs[removedIndex + 1]?.id ??
+        workoutLogs[removedIndex - 1]?.id ??
+        null;
+      setExpansionState({
+        date: currentDate,
+        exerciseId: nextExpandedId,
+        touched: true,
+      });
+      setWorkoutLogs((prev) => prev.filter((exercise) => exercise.id !== id));
+    },
+    [currentDate, setWorkoutLogs, workoutLogs],
+  );
+
+  const toggleExercise = useCallback(
+    (exerciseId: string) => {
+      setExpansionState({
+        date: currentDate,
+        exerciseId:
+          expandedExerciseId === exerciseId ? null : exerciseId,
+        touched: true,
+      });
+    },
+    [currentDate, expandedExerciseId],
+  );
+
+  const selectExercise = useCallback(
+    (exerciseId: string) => {
+      setExpansionState({
+        date: currentDate,
+        exerciseId,
+        touched: true,
+      });
+      requestExerciseScroll(exerciseId);
+    },
+    [currentDate, requestExerciseScroll],
+  );
 
   const updateSet = useCallback(
     (exerciseId: string, setIndex: number, patch: Partial<SetLog>) => {
@@ -145,10 +284,18 @@ export default function App() {
 
   const copyPrompt = useCallback(async () => {
     const text = buildPromptText(parseDateKey(currentDate), workoutLogs);
+    if (copyDoneTimerRef.current !== null) {
+      window.clearTimeout(copyDoneTimerRef.current);
+      copyDoneTimerRef.current = null;
+    }
+
     try {
       await navigator.clipboard.writeText(text);
       setCopyDone(true);
-      window.setTimeout(() => setCopyDone(false), 2000);
+      copyDoneTimerRef.current = window.setTimeout(() => {
+        setCopyDone(false);
+        copyDoneTimerRef.current = null;
+      }, 2000);
     } catch {
       setCopyDone(false);
     }
@@ -165,7 +312,13 @@ export default function App() {
 
   return (
     <div className="min-h-dvh pb-[calc(6rem+env(safe-area-inset-bottom))]">
-      <header className="sticky top-0 z-30 border-b border-[#E5E8EB]/80 bg-[#F2F4F6]/90 px-4 py-4 backdrop-blur-md">
+      <header
+        className={cn(
+          'border-b border-[#E5E8EB]/80 bg-[#F2F4F6] px-4 py-4',
+          activeTab === 'history' &&
+            'sticky top-0 z-30 bg-[#F2F4F6]/90 backdrop-blur-md',
+        )}
+      >
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -210,32 +363,28 @@ export default function App() {
               />
             </button>
           </div>
-          {activeTab === 'today' ? (
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => setPickerOpen(true)}>
-                운동 추가
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => void copyPrompt()}
-                disabled={workoutLogs.length === 0}
-              >
-                {copyDone ? '복사됨' : '기록 복사'}
-              </Button>
-              {authStatus !== 'signed-in' ? (
-                <button
-                  type="button"
-                  className="rounded-3xl px-3 py-2 text-[13px] font-semibold text-[#8B95A1] hover:bg-black/5"
-                  onClick={() => setAccountOpen(true)}
-                >
-                  로그인하고 백업
-                </button>
-              ) : null}
-            </div>
+          {activeTab === 'today' && authStatus !== 'signed-in' ? (
+            <button
+              type="button"
+              className="w-fit rounded-3xl px-3 py-2 text-[13px] font-semibold text-[#8B95A1] hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3182F6]"
+              onClick={() => setAccountOpen(true)}
+            >
+              로그인하고 백업
+            </button>
           ) : null}
         </div>
       </header>
+
+      {activeTab === 'today' ? (
+        <ExerciseQuickNav
+          exercises={workoutLogs}
+          expandedExerciseId={expandedExerciseId}
+          copyDone={copyDone}
+          onSelectExercise={selectExercise}
+          onAddExercise={() => setPickerOpen(true)}
+          onCopyWorkout={() => void copyPrompt()}
+        />
+      ) : null}
 
       <main className="mx-auto max-w-lg space-y-4 px-4 py-5">
         {activeTab === 'today' ? (
@@ -245,16 +394,20 @@ export default function App() {
                 아직 추가된 운동이 없어요
               </p>
               <p className="mt-2 text-[15px] leading-relaxed text-[#8B95A1]">
-                상단의{' '}
-                <span className="font-bold text-[#3182F6]">운동 추가</span>로
-                오늘 루틴을 만들어 보세요.
+                위의{' '}
+                <span className="font-bold text-[#3182F6]">운동 추가</span>
+                버튼으로 오늘 루틴을 만들어 보세요.
               </p>
             </div>
           ) : (
-            workoutLogs.map((ex) => (
+            workoutLogs.map((ex, index) => (
               <ExerciseLogCard
                 key={ex.id}
                 exercise={ex}
+                index={index}
+                expanded={expandedExerciseId === ex.id}
+                cardId={exerciseCardId(ex.id)}
+                onToggle={() => toggleExercise(ex.id)}
                 onRemoveExercise={() => removeExercise(ex.id)}
                 onUpdateSet={(i, p) => updateSet(ex.id, i, p)}
                 onAddSet={() => addSet(ex.id)}

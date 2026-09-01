@@ -1,3 +1,4 @@
+import { cn } from '../lib/utils';
 import type { SetLog, WorkoutExercise } from '../types/workout';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -6,6 +7,10 @@ import { Label } from './ui/label';
 
 type ExerciseLogCardProps = {
   exercise: WorkoutExercise;
+  index: number;
+  expanded: boolean;
+  cardId: string;
+  onToggle: () => void;
   onRemoveExercise: () => void;
   onUpdateSet: (setIndex: number, patch: Partial<SetLog>) => void;
   onAddSet: () => void;
@@ -82,35 +87,146 @@ function Stepper({
   );
 }
 
+function formatSetValue(value: number): string {
+  return Number.isInteger(value)
+    ? String(value)
+    : String(Number(value.toFixed(2)));
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn(
+        'size-5 transition-transform motion-reduce:transition-none',
+        expanded && 'rotate-180',
+      )}
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="size-5"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5" />
+    </svg>
+  );
+}
+
 export function ExerciseLogCard({
   exercise,
+  index,
+  expanded,
+  cardId,
+  onToggle,
   onRemoveExercise,
   onUpdateSet,
   onAddSet,
   onRemoveSet,
 }: ExerciseLogCardProps) {
+  const toggleId = `${cardId}-toggle`;
+  const contentId = `${cardId}-content`;
+
   return (
-    <Card className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[18px] font-bold leading-snug text-[#191F28]">
-            {exercise.exerciseName}
-          </h2>
-          <p className="mt-0.5 text-[13px] font-semibold text-[#3182F6]">
-            {exercise.category}
-          </p>
-        </div>
+    <Card
+      id={cardId}
+      className={cn(
+        'scroll-mt-[76px] overflow-hidden border p-0 transition-colors motion-reduce:transition-none',
+        expanded
+          ? 'border-[#3182F6] bg-[#F5F9FF]'
+          : 'border-transparent bg-white',
+      )}
+    >
+      <div className="flex items-center">
+        <button
+          id={toggleId}
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-3 p-5 pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#3182F6]"
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          aria-label={`${index + 1}번째 운동 ${exercise.exerciseName}, ${exercise.category}, ${exercise.sets.length}세트, ${expanded ? '접기' : '펼치기'}`}
+          onClick={onToggle}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#E8F3FF] text-[14px] font-extrabold text-[#3182F6] tabular-nums">
+            {index + 1}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block break-words text-[18px] leading-snug font-bold text-[#191F28]">
+              {exercise.exerciseName}
+            </span>
+            <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] font-semibold">
+              <span className="text-[#3182F6]">{exercise.category}</span>
+              <span className="text-[#B0B8C1]" aria-hidden="true">
+                ·
+              </span>
+              <span className="text-[#8B95A1]">
+                {exercise.sets.length}세트
+              </span>
+            </span>
+          </span>
+          <span className="shrink-0 text-[#8B95A1]">
+            <ChevronIcon expanded={expanded} />
+          </span>
+        </button>
         <Button
           type="button"
           variant="ghost"
-          className="shrink-0 text-[#B0B8C1] hover:text-[#F04452]"
+          className="mr-2 size-11 shrink-0 rounded-full p-0 text-[#B0B8C1] hover:text-[#F04452]"
           onClick={onRemoveExercise}
+          aria-label={`${exercise.exerciseName} 삭제`}
+          title="운동 삭제"
         >
-          삭제
+          <TrashIcon />
         </Button>
       </div>
 
-      <div className="space-y-4">
+      {!expanded ? (
+        <div
+          className="flex flex-wrap gap-2 px-5 pb-5"
+          aria-label={`${exercise.exerciseName} 세트 요약`}
+        >
+          {exercise.sets.length > 0 ? (
+            exercise.sets.map((set, setIndex) => (
+              <span
+                key={`${set.setNumber}-${setIndex}`}
+                className="rounded-xl bg-[#F2F4F6] px-3 py-2 text-[13px] leading-snug font-semibold text-[#4E5968]"
+              >
+                {set.setNumber}세트 {formatSetValue(set.weight)}kg ×{' '}
+                {formatSetValue(set.reps)}회
+              </span>
+            ))
+          ) : (
+            <span className="text-[13px] font-semibold text-[#8B95A1]">
+              기록된 세트가 없어요
+            </span>
+          )}
+        </div>
+      ) : null}
+
+      <div
+        id={contentId}
+        role="region"
+        aria-label={`${exercise.exerciseName} 세트 입력`}
+        className="space-y-4 px-5 pb-5"
+        hidden={!expanded}
+      >
         {exercise.sets.map((set, idx) => (
           <div
             key={set.setNumber}
@@ -172,16 +288,16 @@ export function ExerciseLogCard({
             </div>
           </div>
         ))}
-      </div>
 
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full"
-        onClick={onAddSet}
-      >
-        세트 추가
-      </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={onAddSet}
+        >
+          세트 추가
+        </Button>
+      </div>
     </Card>
   );
 }
