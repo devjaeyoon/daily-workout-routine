@@ -47,7 +47,7 @@ function Stepper({
         <div className="relative min-w-0 flex-1">
           <Input
             inputMode="decimal"
-            className="pr-10 text-center text-[20px] tabular-nums"
+            className="h-11 py-0 pr-10 text-center text-[20px] tabular-nums"
             value={
               Number.isFinite(value) && value !== 0 ? String(value) : ''
             }
