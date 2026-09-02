@@ -8,13 +8,6 @@ export function formatRestLabel(seconds: number): string {
   return `${m}분 ${s}초`;
 }
 
-export function formatTimer(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-/** 기획서 3.3 GPT용 프롬프트 텍스트 */
 export function buildPromptText(date: Date, logs: WorkoutExercise[]): string {
   const y = date.getFullYear();
   const mo = String(date.getMonth() + 1).padStart(2, '0');
