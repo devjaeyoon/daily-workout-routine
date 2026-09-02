@@ -119,14 +119,13 @@ export default function App() {
     void navigator.storage.persist();
   }, []);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    return () => {
       if (copyDoneTimerRef.current !== null) {
         window.clearTimeout(copyDoneTimerRef.current);
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   useEffect(() => {
     if (
