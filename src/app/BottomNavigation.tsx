@@ -1,17 +1,14 @@
 import { cn } from '@/shared/lib/cn';
+import {
+  APP_TABS,
+  APP_TAB_PRESENTATION,
+  type AppTab,
+  type AppTabIcon,
+} from './presentation';
 
-export type AppTab = 'today' | 'history';
+export type { AppTab } from './presentation';
 
-const TABS: Array<{
-  value: AppTab;
-  label: string;
-  icon: 'today' | 'history';
-}> = [
-  { value: 'today', label: '오늘', icon: 'today' },
-  { value: 'history', label: '기록', icon: 'history' },
-];
-
-function TabIcon({ icon }: { icon: 'today' | 'history' }) {
+function TabIcon({ icon }: { icon: AppTabIcon }) {
   if (icon === 'today') {
     return (
       <svg
@@ -63,15 +60,16 @@ export function BottomNavigation({
         className="mx-auto grid max-w-lg grid-cols-2 gap-2"
         role="tablist"
       >
-        {TABS.map((tab) => {
-          const selected = activeTab === tab.value;
+        {APP_TABS.map((value) => {
+          const selected = activeTab === value;
+          const presentation = APP_TAB_PRESENTATION[value];
           return (
             <button
-              key={tab.value}
+              key={value}
               type="button"
               role="tab"
               aria-selected={selected}
-              onClick={() => onTabChange(tab.value)}
+              onClick={() => onTabChange(value)}
               className={cn(
                 'flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-[12px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3182F6]',
                 selected
@@ -79,8 +77,8 @@ export function BottomNavigation({
                   : 'text-[#8B95A1] hover:bg-[#F9FAFB]',
               )}
             >
-              <TabIcon icon={tab.icon} />
-              <span>{tab.label}</span>
+              <TabIcon icon={presentation.icon} />
+              <span>{presentation.navigationLabel}</span>
             </button>
           );
         })}

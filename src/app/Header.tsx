@@ -1,40 +1,12 @@
 import type { AuthStatus } from '@/features/auth/useSupabaseAuth';
-import { formatWorkoutDate } from '@/features/workout/lib/workoutDate';
 import type { SyncStatus } from '@/features/workout/hooks/useWorkoutSessions';
 import { cn } from '@/shared/lib/cn';
 import type { AppTab } from './BottomNavigation';
-
-function syncStatusLabel(status: SyncStatus): string {
-  switch (status) {
-    case 'syncing':
-      return '동기화 중';
-    case 'synced':
-      return '동기화됨';
-    case 'offline':
-      return '오프라인 저장';
-    case 'error':
-      return '저장 확인 필요';
-    default:
-      return '이 기기에 저장됨';
-  }
-}
-
-function syncStatusIndicatorClass(
-  authStatus: AuthStatus,
-  syncStatus: SyncStatus,
-): string {
-  if (authStatus !== 'signed-in') return 'bg-[#B0B8C1]';
-
-  switch (syncStatus) {
-    case 'error':
-      return 'bg-[#F04452]';
-    case 'syncing':
-    case 'offline':
-      return 'bg-[#FFB020]';
-    default:
-      return 'bg-[#20C997]';
-  }
-}
+import {
+  APP_TAB_PRESENTATION,
+  AUTH_STATUS_PRESENTATION,
+  SYNC_STATUS_PRESENTATION,
+} from './presentation';
 
 export function Header({
   activeTab,
@@ -49,6 +21,10 @@ export function Header({
   syncStatus: SyncStatus;
   onOpenAccount: () => void;
 }) {
+  const authPresentation = AUTH_STATUS_PRESENTATION[authStatus];
+  const syncPresentation = SYNC_STATUS_PRESENTATION[syncStatus];
+  const tabPresentation = APP_TAB_PRESENTATION[activeTab];
+
   return (
     <header
       className={cn(
@@ -61,18 +37,16 @@ export function Header({
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-[22px] font-bold tracking-tight text-[#191F28]">
-              {activeTab === 'today' ? '오늘의 운동' : '운동 기록'}
+              {tabPresentation.headerTitle}
             </h1>
             <p className="mt-0.5 text-[14px] font-semibold text-[#8B95A1]">
-              {activeTab === 'today'
-                ? `${formatWorkoutDate(currentDate)} · 새벽 4시 기준`
-                : '운동한 날과 세트 기록을 모아봤어요'}
+              {tabPresentation.headerDescription(currentDate)}
             </p>
           </div>
           <button
             type="button"
             className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-[#4E5968] shadow-sm transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3182F6]"
-            aria-label={`계정 및 동기화 열기, ${syncStatusLabel(syncStatus)}`}
+            aria-label={`계정 및 동기화 열기, ${syncPresentation.headerLabel}`}
             onClick={onOpenAccount}
           >
             <svg
@@ -91,12 +65,14 @@ export function Header({
             <span
               className={cn(
                 'absolute bottom-0.5 right-0.5 size-3 rounded-full border-2 border-white',
-                syncStatusIndicatorClass(authStatus, syncStatus),
+                authPresentation.isSignedIn
+                  ? syncPresentation.indicatorClassName
+                  : 'bg-[#B0B8C1]',
               )}
             />
           </button>
         </div>
-        {activeTab === 'today' && authStatus !== 'signed-in' ? (
+        {activeTab === 'today' && authPresentation.showBackupPrompt ? (
           <button
             type="button"
             className="w-fit rounded-3xl px-3 py-2 text-[13px] font-semibold text-[#8B95A1] hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3182F6]"

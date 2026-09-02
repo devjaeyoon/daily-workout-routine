@@ -3,43 +3,10 @@ import { AuthCard } from '@/features/auth/AuthCard';
 import type { AuthStatus } from '@/features/auth/useSupabaseAuth';
 import type { SyncStatus } from '@/features/workout/hooks/useWorkoutSessions';
 import { Button } from '@/shared/ui/button';
-
-function statusDescription(
-  authStatus: AuthStatus,
-  syncStatus: SyncStatus,
-): string {
-  if (authStatus !== 'signed-in') {
-    return '로그인 전에도 기록은 이 기기에 자동 저장돼요.';
-  }
-
-  switch (syncStatus) {
-    case 'syncing':
-      return '변경된 운동 기록을 서버에 저장하고 있어요.';
-    case 'synced':
-      return '이 기기와 Supabase의 기록이 최신 상태예요.';
-    case 'offline':
-      return '이 기기에 저장했어요. 연결되면 자동 동기화해요.';
-    case 'error':
-      return '서버 저장을 완료하지 못했어요. 다시 시도해 주세요.';
-    default:
-      return '기록을 이 기기에 안전하게 저장하고 있어요.';
-  }
-}
-
-function syncStatusLabel(syncStatus: SyncStatus): string {
-  switch (syncStatus) {
-    case 'syncing':
-      return '동기화 중';
-    case 'synced':
-      return '동기화 완료';
-    case 'offline':
-      return '오프라인 저장';
-    case 'error':
-      return '동기화 확인 필요';
-    default:
-      return '로컬 저장';
-  }
-}
+import {
+  AUTH_STATUS_PRESENTATION,
+  SYNC_STATUS_PRESENTATION,
+} from './presentation';
 
 export function AccountDialog({
   open,
@@ -64,6 +31,12 @@ export function AccountDialog({
   onSignOut: () => Promise<void>;
   onSync: () => Promise<void>;
 }) {
+  const authPresentation = AUTH_STATUS_PRESENTATION[authStatus];
+  const syncPresentation = SYNC_STATUS_PRESENTATION[syncStatus];
+  const description = authPresentation.isSignedIn
+    ? syncPresentation.accountDescription
+    : '로그인 전에도 기록은 이 기기에 자동 저장돼요.';
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -78,7 +51,7 @@ export function AccountDialog({
                 계정 및 동기화
               </Dialog.Title>
               <p className="mt-1 text-[14px] text-[#8B95A1]">
-                {statusDescription(authStatus, syncStatus)}
+                {description}
               </p>
             </div>
             <Dialog.Close asChild>
@@ -93,7 +66,7 @@ export function AccountDialog({
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain">
-            {authStatus === 'signed-in' ? (
+            {authPresentation.isSignedIn ? (
               <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_2px_12px_rgb(0_0_0/0.04)]">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -101,7 +74,7 @@ export function AccountDialog({
                       저장 상태
                     </p>
                     <p className="mt-0.5 text-[15px] font-bold text-[#191F28]">
-                      {syncStatusLabel(syncStatus)}
+                      {syncPresentation.accountLabel}
                     </p>
                     {lastSyncedAt ? (
                       <p className="mt-0.5 text-[12px] text-[#8B95A1]">

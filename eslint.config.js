@@ -20,6 +20,7 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      'no-nested-ternary': 'error',
       'semi': ['error', 'always'],
     },
   },
