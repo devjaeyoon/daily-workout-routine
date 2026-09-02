@@ -20,7 +20,6 @@ export function useWorkoutSessions(userId?: string) {
     markDirty,
   } = useWorkoutSync({
     userId,
-    sessions,
     sessionsRef,
     setSessions,
     storageError,

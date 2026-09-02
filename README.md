@@ -31,6 +31,9 @@ supabase db push --dry-run
 supabase db push
 ```
 
+조건부 운동 기록 저장 RPC가 먼저 존재해야 하므로, 해당 프런트엔드 버전을 배포하기
+전에 마이그레이션을 적용합니다.
+
 3. 앱은 iOS 홈 화면 PWA에서도 로그인 세션을 안정적으로 유지하도록 이메일과
 비밀번호 로그인을 사용합니다. 최초 가입 시 받은 확인 메일을 연 뒤 홈 화면
 앱으로 돌아와 로그인합니다.
@@ -45,6 +48,14 @@ pnpm dev
 검증 명령:
 
 ```bash
+pnpm test
 pnpm build
 pnpm lint
+```
+
+DB 정책 테스트는 Docker 또는 Podman으로 로컬 Supabase를 실행한 뒤 수행합니다.
+
+```bash
+pnpm exec supabase start
+pnpm test:db
 ```

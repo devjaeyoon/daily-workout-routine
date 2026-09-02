@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import {
   fetchWorkoutSessions,
   upsertWorkoutSession,
@@ -7,7 +13,10 @@ import {
   mergeWorkoutSessions,
   sessionsToDateMap,
 } from '@/features/workout/model/sessionModel';
-import type { WorkoutSessionsByDate } from '@/features/workout/model/types';
+import type {
+  WorkoutSession,
+  WorkoutSessionsByDate,
+} from '@/features/workout/model/types';
 import type { SessionsUpdater } from './useWorkoutSessionStore';
 
 export type SyncStatus =
@@ -17,109 +26,375 @@ export type SyncStatus =
   | 'offline'
   | 'error';
 
+type SyncRequest = {
+  userId: string;
+  generation: number;
+  fetchRemote: boolean;
+  resolve: Array<() => void>;
+};
+
+type SyncRunResult = {
+  stale: boolean;
+  hadError: boolean;
+};
+
+type SessionRevisionSnapshot = {
+  date: string;
+  revision: number;
+  session: WorkoutSession;
+};
+
+type ScopedSyncStatus = {
+  userId?: string;
+  status: SyncStatus;
+};
+
+type LastSync = {
+  userId: string;
+  syncedAt: string;
+};
+
+function settleRequest(request: SyncRequest): void {
+  request.resolve.forEach((resolve) => resolve());
+}
+
+function getNetworkStatus(
+  scopedStatus: ScopedSyncStatus,
+  userId: string | undefined,
+): SyncStatus {
+  if (scopedStatus.userId === userId) return scopedStatus.status;
+  return userId ? 'syncing' : 'local';
+}
+
+function getLastSyncedAt(
+  lastSync: LastSync | null,
+  userId: string | undefined,
+): string | null {
+  if (!userId || lastSync?.userId !== userId) return null;
+  return lastSync.syncedAt;
+}
+
 export function useWorkoutSync({
   userId,
-  sessions,
   sessionsRef,
   setSessions,
   storageError,
 }: {
   userId?: string;
-  sessions: WorkoutSessionsByDate;
-  sessionsRef: React.RefObject<WorkoutSessionsByDate>;
+  sessionsRef: RefObject<WorkoutSessionsByDate>;
   setSessions: (updater: SessionsUpdater) => void;
   storageError: boolean;
 }) {
-  const [networkStatus, setNetworkStatus] = useState<SyncStatus>('local');
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const dirtyDatesRef = useRef(new Set<string>());
+  const [scopedStatus, setScopedStatus] = useState<ScopedSyncStatus>({
+    userId,
+    status: userId ? 'syncing' : 'local',
+  });
+  const [lastSync, setLastSync] = useState<LastSync | null>(null);
+  const [localEditVersion, setLocalEditVersion] = useState(0);
+  const mountedRef = useRef(true);
+  const userIdRef = useRef(userId);
+  const generationRef = useRef(0);
+  const revisionsRef = useRef(new Map<string, number>());
+  const dirtyRevisionsRef = useRef(new Map<string, number>());
+  const pendingRequestRef = useRef<SyncRequest | null>(null);
+  const queueRunningRef = useRef(false);
+  const remoteFetchErrorGenerationRef = useRef<number | null>(null);
 
-  const syncFromRemote = useCallback(async () => {
-    if (!userId) {
-      setNetworkStatus('local');
-      return;
-    }
+  userIdRef.current = userId;
 
-    if (!navigator.onLine) {
-      setNetworkStatus('offline');
-      return;
-    }
+  const isActive = useCallback(
+    (requestUserId: string, requestGeneration: number) =>
+      mountedRef.current &&
+      userIdRef.current === requestUserId &&
+      generationRef.current === requestGeneration,
+    [],
+  );
 
-    setNetworkStatus('syncing');
-    try {
-      const remoteSessions = sessionsToDateMap(
-        await fetchWorkoutSessions(userId),
-      );
-      const { merged, shouldUpload } = mergeWorkoutSessions(
-        sessionsRef.current,
-        remoteSessions,
-      );
-
-      for (const session of shouldUpload) {
-        const saved = await upsertWorkoutSession(userId, session);
-        merged[saved.workoutDate] = saved;
+  const updateStatus = useCallback(
+    (
+      requestUserId: string | undefined,
+      requestGeneration: number,
+      status: SyncStatus,
+    ) => {
+      if (
+        mountedRef.current &&
+        userIdRef.current === requestUserId &&
+        generationRef.current === requestGeneration
+      ) {
+        setScopedStatus({ userId: requestUserId, status });
       }
+    },
+    [],
+  );
 
-      dirtyDatesRef.current.clear();
-      setSessions(merged);
-      setLastSyncedAt(new Date().toISOString());
-      setNetworkStatus('synced');
-    } catch {
-      setNetworkStatus(navigator.onLine ? 'error' : 'offline');
-    }
-  }, [sessionsRef, setSessions, userId]);
+  const markSessionForUpload = useCallback((date: string) => {
+    if (dirtyRevisionsRef.current.has(date)) return;
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void syncFromRemote();
-    }, 0);
-    return () => window.clearTimeout(timeoutId);
-  }, [syncFromRemote]);
+    dirtyRevisionsRef.current.set(
+      date,
+      revisionsRef.current.get(date) ?? 0,
+    );
+  }, []);
 
-  useEffect(() => {
-    if (!userId || dirtyDatesRef.current.size === 0) return;
+  const runRequest = useCallback(
+    async (request: SyncRequest): Promise<SyncRunResult> => {
+      let hadError = false;
 
-    const timeoutId = window.setTimeout(async () => {
-      if (!navigator.onLine) {
-        setNetworkStatus('offline');
-        return;
-      }
+      if (request.fetchRemote) {
+        try {
+          const remoteSessions = sessionsToDateMap(
+            await fetchWorkoutSessions(request.userId),
+          );
+          if (!isActive(request.userId, request.generation)) {
+            return { stale: true, hadError: false };
+          }
 
-      const dates = [...dirtyDatesRef.current];
-      dirtyDatesRef.current.clear();
-      setNetworkStatus('syncing');
-
-      try {
-        for (const date of dates) {
-          const session = sessionsRef.current[date];
-          if (session) await upsertWorkoutSession(userId, session);
+          const { shouldUpload } = mergeWorkoutSessions(
+            sessionsRef.current,
+            remoteSessions,
+          );
+          shouldUpload.forEach((session) => {
+            markSessionForUpload(session.workoutDate);
+          });
+          setSessions((latestSessions) =>
+            mergeWorkoutSessions(latestSessions, remoteSessions).merged,
+          );
+          remoteFetchErrorGenerationRef.current = null;
+        } catch {
+          if (!isActive(request.userId, request.generation)) {
+            return { stale: true, hadError: false };
+          }
+          remoteFetchErrorGenerationRef.current = request.generation;
+          hadError = true;
         }
-        setLastSyncedAt(new Date().toISOString());
-        setNetworkStatus('synced');
-      } catch {
-        dates.forEach((date) => dirtyDatesRef.current.add(date));
-        setNetworkStatus(navigator.onLine ? 'error' : 'offline');
+      }
+
+      if (!isActive(request.userId, request.generation)) {
+        return { stale: true, hadError: false };
+      }
+
+      const snapshots = [...dirtyRevisionsRef.current.entries()]
+        .sort(([firstDate], [secondDate]) =>
+          firstDate.localeCompare(secondDate),
+        )
+        .flatMap<SessionRevisionSnapshot>(([date, revision]) => {
+          const session = sessionsRef.current[date];
+          return session ? [{ date, revision, session }] : [];
+        });
+
+      for (const snapshot of snapshots) {
+        try {
+          const saved = await upsertWorkoutSession(snapshot.session);
+          if (!isActive(request.userId, request.generation)) {
+            return { stale: true, hadError: false };
+          }
+
+          const revisionIsCurrent =
+            dirtyRevisionsRef.current.get(snapshot.date) ===
+            snapshot.revision;
+          setSessions((latestSessions) => {
+            if (revisionIsCurrent) {
+              return {
+                ...latestSessions,
+                [snapshot.date]: saved,
+              };
+            }
+
+            return mergeWorkoutSessions(latestSessions, {
+              [saved.workoutDate]: saved,
+            }).merged;
+          });
+
+          if (revisionIsCurrent) {
+            dirtyRevisionsRef.current.delete(snapshot.date);
+          }
+        } catch {
+          if (!isActive(request.userId, request.generation)) {
+            return { stale: true, hadError: false };
+          }
+          hadError = true;
+        }
+      }
+
+      return { stale: false, hadError };
+    },
+    [isActive, markSessionForUpload, sessionsRef, setSessions],
+  );
+
+  const drainQueue = useCallback(async () => {
+    if (queueRunningRef.current) return;
+
+    queueRunningRef.current = true;
+    let completedGeneration: number | null = null;
+    let lastRunHadError = false;
+
+    try {
+      while (pendingRequestRef.current) {
+        const request = pendingRequestRef.current;
+        pendingRequestRef.current = null;
+
+        const result = await runRequest(request);
+        settleRequest(request);
+
+        if (!result.stale) {
+          completedGeneration = request.generation;
+          lastRunHadError = result.hadError;
+        }
+      }
+    } finally {
+      queueRunningRef.current = false;
+
+      const activeUserId = userIdRef.current;
+      const activeGeneration = generationRef.current;
+      const canUpdateStatus =
+        mountedRef.current &&
+        Boolean(activeUserId) &&
+        completedGeneration === activeGeneration;
+
+      if (canUpdateStatus && activeUserId) {
+        if (!navigator.onLine) {
+          updateStatus(activeUserId, activeGeneration, 'offline');
+        } else if (
+          lastRunHadError ||
+          remoteFetchErrorGenerationRef.current === activeGeneration
+        ) {
+          updateStatus(activeUserId, activeGeneration, 'error');
+        } else if (dirtyRevisionsRef.current.size > 0) {
+          updateStatus(activeUserId, activeGeneration, 'syncing');
+        } else {
+          setLastSync({
+            userId: activeUserId,
+            syncedAt: new Date().toISOString(),
+          });
+          updateStatus(activeUserId, activeGeneration, 'synced');
+        }
+      }
+    }
+  }, [runRequest, updateStatus]);
+
+  const enqueueSync = useCallback(
+    (fetchRemote: boolean): Promise<void> => {
+      const requestUserId = userIdRef.current;
+      const requestGeneration = generationRef.current;
+
+      if (!requestUserId) {
+        updateStatus(undefined, requestGeneration, 'local');
+        return Promise.resolve();
+      }
+
+      if (!navigator.onLine) {
+        updateStatus(requestUserId, requestGeneration, 'offline');
+        return Promise.resolve();
+      }
+
+      return new Promise((resolve) => {
+        const pendingRequest = pendingRequestRef.current;
+        if (
+          pendingRequest &&
+          pendingRequest.userId === requestUserId &&
+          pendingRequest.generation === requestGeneration
+        ) {
+          pendingRequest.fetchRemote ||= fetchRemote;
+          pendingRequest.resolve.push(resolve);
+        } else {
+          if (pendingRequest) settleRequest(pendingRequest);
+          pendingRequestRef.current = {
+            userId: requestUserId,
+            generation: requestGeneration,
+            fetchRemote,
+            resolve: [resolve],
+          };
+        }
+
+        updateStatus(requestUserId, requestGeneration, 'syncing');
+        void drainQueue();
+      });
+    },
+    [drainQueue, updateStatus],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      generationRef.current += 1;
+      const pendingRequest = pendingRequestRef.current;
+      pendingRequestRef.current = null;
+      if (pendingRequest) settleRequest(pendingRequest);
+    };
+  }, []);
+
+  useEffect(() => {
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    remoteFetchErrorGenerationRef.current = null;
+    const timeoutId = window.setTimeout(() => {
+      void enqueueSync(true);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (generationRef.current === generation) {
+        generationRef.current += 1;
+      }
+
+      const pendingRequest = pendingRequestRef.current;
+      if (pendingRequest?.generation === generation) {
+        pendingRequestRef.current = null;
+        settleRequest(pendingRequest);
+      }
+    };
+  }, [enqueueSync, userId]);
+
+  useEffect(() => {
+    if (!userId || dirtyRevisionsRef.current.size === 0) return;
+
+    const timeoutId = window.setTimeout(() => {
+      if (dirtyRevisionsRef.current.size > 0) {
+        void enqueueSync(false);
       }
     }, 800);
 
     return () => window.clearTimeout(timeoutId);
-  }, [sessions, sessionsRef, userId]);
+  }, [enqueueSync, localEditVersion, userId]);
 
   useEffect(() => {
     const handleOnline = () => {
-      void syncFromRemote();
+      void enqueueSync(true);
     };
     window.addEventListener('online', handleOnline);
     return () => window.removeEventListener('online', handleOnline);
-  }, [syncFromRemote]);
+  }, [enqueueSync]);
 
-  const markDirty = useCallback((date: string) => {
-    dirtyDatesRef.current.add(date);
-  }, []);
+  const markDirty = useCallback(
+    (date: string) => {
+      const nextRevision = (revisionsRef.current.get(date) ?? 0) + 1;
+      revisionsRef.current.set(date, nextRevision);
+      dirtyRevisionsRef.current.set(date, nextRevision);
+      setLocalEditVersion((version) => version + 1);
+
+      const activeUserId = userIdRef.current;
+      if (activeUserId) {
+        updateStatus(
+          activeUserId,
+          generationRef.current,
+          navigator.onLine ? 'syncing' : 'offline',
+        );
+      }
+    },
+    [updateStatus],
+  );
+
+  const syncFromRemote = useCallback(
+    () => enqueueSync(true),
+    [enqueueSync],
+  );
+  const networkStatus = getNetworkStatus(scopedStatus, userId);
 
   return {
     syncStatus: storageError ? 'error' : networkStatus,
-    lastSyncedAt,
+    lastSyncedAt: getLastSyncedAt(lastSync, userId),
     syncFromRemote,
     markDirty,
   };

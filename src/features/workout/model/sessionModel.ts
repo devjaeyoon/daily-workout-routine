@@ -49,6 +49,20 @@ export function mergeWorkoutSessions(
   return { merged, shouldUpload };
 }
 
+export function getNextUpdatedAt(
+  previousUpdatedAt: string | undefined,
+  now = new Date(),
+): string {
+  const previousTime = previousUpdatedAt
+    ? Date.parse(previousUpdatedAt)
+    : Number.NaN;
+  const nextTime = Number.isNaN(previousTime)
+    ? now.getTime()
+    : Math.max(now.getTime(), previousTime + 1);
+
+  return new Date(nextTime).toISOString();
+}
+
 export function updateWorkoutSession(
   sessions: WorkoutSessionsByDate,
   workoutDate: string,
@@ -59,7 +73,7 @@ export function updateWorkoutSession(
   const previousLogs = previousSession?.exercises ?? [];
   const nextLogs =
     typeof updater === 'function' ? updater(previousLogs) : updater;
-  const updatedAt = now.toISOString();
+  const updatedAt = getNextUpdatedAt(previousSession?.updatedAt, now);
 
   return {
     ...sessions,

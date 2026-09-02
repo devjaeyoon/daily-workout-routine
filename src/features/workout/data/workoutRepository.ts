@@ -40,23 +40,16 @@ export async function fetchWorkoutSessions(
 }
 
 export async function upsertWorkoutSession(
-  userId: string,
   session: WorkoutSession,
 ): Promise<WorkoutSession> {
   if (!supabase) return session;
 
   const { data, error } = await supabase
-    .from('workout_sessions')
-    .upsert(
-      {
-        user_id: userId,
-        workout_date: session.workoutDate,
-        exercises: session.exercises,
-        updated_at: session.updatedAt,
-      },
-      { onConflict: 'user_id,workout_date' },
-    )
-    .select('user_id, workout_date, exercises, created_at, updated_at')
+    .rpc('upsert_workout_session_if_newer', {
+      p_workout_date: session.workoutDate,
+      p_exercises: session.exercises,
+      p_updated_at: session.updatedAt,
+    })
     .single();
 
   if (error) throw error;

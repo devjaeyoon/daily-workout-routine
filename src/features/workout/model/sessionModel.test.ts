@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorkoutExercise, WorkoutSession } from './types';
 import {
+  getNextUpdatedAt,
   mergeWorkoutSessions,
   sessionsToDateMap,
   updateWorkoutSession,
@@ -90,5 +91,16 @@ describe('sessionModel', () => {
       exercises: [exercise],
       updatedAt: '2026-08-01T03:00:00.000Z',
     });
+  });
+
+  it('increments timestamps for consecutive edits in the same millisecond', () => {
+    const now = new Date('2026-08-01T03:00:00.000Z');
+    const first = getNextUpdatedAt(undefined, now);
+    const second = getNextUpdatedAt(first, now);
+    const third = getNextUpdatedAt(second, now);
+
+    expect(first).toBe('2026-08-01T03:00:00.000Z');
+    expect(second).toBe('2026-08-01T03:00:00.001Z');
+    expect(third).toBe('2026-08-01T03:00:00.002Z');
   });
 });

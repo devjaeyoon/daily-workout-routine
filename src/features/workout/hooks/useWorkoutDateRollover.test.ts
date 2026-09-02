@@ -8,6 +8,7 @@ describe('useWorkoutDateRollover', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -31,6 +32,19 @@ describe('useWorkoutDateRollover', () => {
     vi.setSystemTime(new Date(2026, 8, 2, 4, 30));
     act(() => {
       window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(result.current).toBe('2026-09-02');
+  });
+
+  it('refreshes the workout date when the document becomes visible', () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.setSystemTime(new Date(2026, 8, 2, 3, 30));
+    const { result } = renderHook(useWorkoutDateRollover);
+
+    vi.setSystemTime(new Date(2026, 8, 2, 4, 30));
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
     });
 
     expect(result.current).toBe('2026-09-02');
