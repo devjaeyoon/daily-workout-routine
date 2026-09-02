@@ -27,7 +27,6 @@ function Stepper({
   step,
   min,
   max,
-  suffix,
 }: {
   label: string;
   value: number;
@@ -35,7 +34,6 @@ function Stepper({
   step: number;
   min: number;
   max: number;
-  suffix?: string;
 }) {
   const dec = () => onChange(Math.max(min, value - step));
   const inc = () => onChange(Math.min(max, value + step));
@@ -52,10 +50,10 @@ function Stepper({
         >
           −
         </Button>
-        <div className="relative min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <Input
             inputMode="decimal"
-            className="h-11 py-0 pr-10 text-center text-[20px] tabular-nums"
+            className="h-11 px-4 py-0 text-center text-[20px] tabular-nums"
             value={
               Number.isFinite(value) && value !== 0 ? String(value) : ''
             }
@@ -70,11 +68,6 @@ function Stepper({
             }}
             aria-label={label}
           />
-          {suffix ? (
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-[#8B95A1]">
-              {suffix}
-            </span>
-          ) : null}
         </div>
         <Button
           type="button"
@@ -259,7 +252,6 @@ export function ExerciseLogCard({
                 step={5}
                 min={0}
                 max={500}
-                suffix="kg"
               />
               <Stepper
                 label="횟수"
@@ -286,7 +278,6 @@ export function ExerciseLogCard({
                 step={30}
                 min={0}
                 max={600}
-                suffix="초"
               />
             </div>
           </div>
