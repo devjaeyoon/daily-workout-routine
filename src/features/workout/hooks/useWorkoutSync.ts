@@ -24,7 +24,8 @@ export type SyncStatus =
   | 'syncing'
   | 'synced'
   | 'offline'
-  | 'error';
+  | 'error'
+  | 'account-conflict';
 
 type SyncRequest = {
   userId: string;
@@ -79,11 +80,13 @@ export function useWorkoutSync({
   sessionsRef,
   setSessions,
   storageError,
+  accountConflict,
 }: {
   userId?: string;
   sessionsRef: RefObject<WorkoutSessionsByDate>;
   setSessions: (updater: SessionsUpdater) => void;
   storageError: boolean;
+  accountConflict: boolean;
 }) {
   const [scopedStatus, setScopedStatus] = useState<ScopedSyncStatus>({
     userId,
@@ -93,14 +96,16 @@ export function useWorkoutSync({
   const [localEditVersion, setLocalEditVersion] = useState(0);
   const mountedRef = useRef(true);
   const userIdRef = useRef(userId);
+  const accountConflictRef = useRef(accountConflict);
   const generationRef = useRef(0);
   const revisionsRef = useRef(new Map<string, number>());
   const dirtyRevisionsRef = useRef(new Map<string, number>());
   const pendingRequestRef = useRef<SyncRequest | null>(null);
-  const queueRunningRef = useRef(false);
+  const runningGenerationsRef = useRef(new Set<number>());
   const remoteFetchErrorGenerationRef = useRef<number | null>(null);
 
   userIdRef.current = userId;
+  accountConflictRef.current = accountConflict;
 
   const isActive = useCallback(
     (requestUserId: string, requestGeneration: number) =>
@@ -221,15 +226,15 @@ export function useWorkoutSync({
     [isActive, markSessionForUpload, sessionsRef, setSessions],
   );
 
-  const drainQueue = useCallback(async () => {
-    if (queueRunningRef.current) return;
+  const drainQueue = useCallback(async (generation: number) => {
+    if (runningGenerationsRef.current.has(generation)) return;
 
-    queueRunningRef.current = true;
+    runningGenerationsRef.current.add(generation);
     let completedGeneration: number | null = null;
     let lastRunHadError = false;
 
     try {
-      while (pendingRequestRef.current) {
+      while (pendingRequestRef.current?.generation === generation) {
         const request = pendingRequestRef.current;
         pendingRequestRef.current = null;
 
@@ -242,7 +247,7 @@ export function useWorkoutSync({
         }
       }
     } finally {
-      queueRunningRef.current = false;
+      runningGenerationsRef.current.delete(generation);
 
       const activeUserId = userIdRef.current;
       const activeGeneration = generationRef.current;
@@ -277,7 +282,7 @@ export function useWorkoutSync({
       const requestUserId = userIdRef.current;
       const requestGeneration = generationRef.current;
 
-      if (!requestUserId) {
+      if (!requestUserId || accountConflictRef.current) {
         updateStatus(undefined, requestGeneration, 'local');
         return Promise.resolve();
       }
@@ -307,7 +312,7 @@ export function useWorkoutSync({
         }
 
         updateStatus(requestUserId, requestGeneration, 'syncing');
-        void drainQueue();
+        void drainQueue(requestGeneration);
       });
     },
     [drainQueue, updateStatus],
@@ -329,12 +334,16 @@ export function useWorkoutSync({
     const generation = generationRef.current + 1;
     generationRef.current = generation;
     remoteFetchErrorGenerationRef.current = null;
-    const timeoutId = window.setTimeout(() => {
-      void enqueueSync(true);
-    }, 0);
+    revisionsRef.current.clear();
+    dirtyRevisionsRef.current.clear();
+    const timeoutId = userId
+      ? window.setTimeout(() => {
+          void enqueueSync(true);
+        }, 0)
+      : null;
 
     return () => {
-      window.clearTimeout(timeoutId);
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
       if (generationRef.current === generation) {
         generationRef.current += 1;
       }
@@ -345,7 +354,7 @@ export function useWorkoutSync({
         settleRequest(pendingRequest);
       }
     };
-  }, [enqueueSync, userId]);
+  }, [accountConflict, enqueueSync, userId]);
 
   useEffect(() => {
     if (!userId || dirtyRevisionsRef.current.size === 0) return;
@@ -391,9 +400,12 @@ export function useWorkoutSync({
     [enqueueSync],
   );
   const networkStatus = getNetworkStatus(scopedStatus, userId);
+  let syncStatus = networkStatus;
+  if (storageError) syncStatus = 'error';
+  if (accountConflict) syncStatus = 'account-conflict';
 
   return {
-    syncStatus: storageError ? 'error' : networkStatus,
+    syncStatus,
     lastSyncedAt: getLastSyncedAt(lastSync, userId),
     syncFromRemote,
     markDirty,

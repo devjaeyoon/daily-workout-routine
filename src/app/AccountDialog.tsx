@@ -19,6 +19,7 @@ export function AccountDialog({
   onSignUp,
   onSignOut,
   onSync,
+  onResolveAccountConflict,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -30,12 +31,21 @@ export function AccountDialog({
   onSignUp: (email: string, password: string) => Promise<boolean>;
   onSignOut: () => Promise<void>;
   onSync: () => Promise<void>;
+  onResolveAccountConflict: () => boolean;
 }) {
   const authPresentation = AUTH_STATUS_PRESENTATION[authStatus];
   const syncPresentation = SYNC_STATUS_PRESENTATION[syncStatus];
   const description = authPresentation.isSignedIn
     ? syncPresentation.accountDescription
     : '로그인 전에도 기록은 이 기기에 자동 저장돼요.';
+  const hasAccountConflict = syncStatus === 'account-conflict';
+
+  const handleResetAccount = () => {
+    const confirmed = window.confirm(
+      '이 기기에만 남아 있는 이전 계정의 운동 기록이 삭제될 수 있어요. 서버에 저장된 기록은 삭제되지 않아요. 이 기기 기록을 초기화하고 계속할까요?',
+    );
+    if (confirmed) onResolveAccountConflict();
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -87,10 +97,46 @@ export function AccountDialog({
                     type="button"
                     variant="secondary"
                     className="shrink-0 px-4 py-2.5 text-[13px]"
-                    disabled={syncStatus === 'syncing'}
+                    disabled={
+                      syncStatus === 'syncing' || hasAccountConflict
+                    }
                     onClick={() => void onSync()}
                   >
                     다시 동기화
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {hasAccountConflict ? (
+              <div
+                className="rounded-2xl border border-[#FECACA] bg-[#FFF5F5] p-4"
+                role="alert"
+              >
+                <p className="text-[16px] font-bold text-[#191F28]">
+                  다른 계정의 기록이 있어요
+                </p>
+                <p className="mt-1 text-[14px] leading-relaxed text-[#6B7684]">
+                  기록을 섞지 않기 위해 조회, 편집, 동기화를 잠시 막았어요.
+                  기존 계정으로 다시 로그인하거나 이 기기의 기록을 초기화해
+                  주세요.
+                </p>
+                <div className="mt-4 space-y-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => void onSignOut()}
+                  >
+                    로그아웃 후 기존 계정으로 다시 로그인
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full border-[#FECACA] text-[#D92D20]"
+                    onClick={handleResetAccount}
+                  >
+                    이 기기 기록 초기화 후 계속
                   </Button>
                 </div>
               </div>

@@ -5,38 +5,56 @@ import type {
   WorkoutSessionsByDate,
 } from '@/features/workout/model/types';
 
-const STORAGE_KEY = 'daily-workout:sessions:v1';
+export const WORKOUT_SESSIONS_STORAGE_KEY =
+  'daily-workout:sessions:v2';
+export const LEGACY_WORKOUT_SESSIONS_STORAGE_KEY =
+  'daily-workout:sessions:v1';
 
-type StoredWorkoutSessions = {
-  version: 1;
+export type WorkoutSessionOwner =
+  | { kind: 'guest' }
+  | { kind: 'user'; userId: string };
+
+export type WorkoutSessionCache = {
+  version: 2;
+  owner: WorkoutSessionOwner;
   sessions: WorkoutSessionsByDate;
 };
+
+export type WorkoutSessionCacheLoadResult = {
+  cache: WorkoutSessionCache;
+  persisted: boolean;
+  storageError: boolean;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
 
 function isNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
 function isSetLog(value: unknown): value is SetLog {
-  if (!value || typeof value !== 'object') return false;
-  const set = value as Partial<SetLog>;
+  if (!isRecord(value)) return false;
+
   return (
-    isNumber(set.setNumber) &&
-    isNumber(set.weight) &&
-    isNumber(set.reps) &&
-    isNumber(set.rir) &&
-    isNumber(set.restTime)
+    isNumber(value.setNumber) &&
+    isNumber(value.weight) &&
+    isNumber(value.reps) &&
+    isNumber(value.rir) &&
+    isNumber(value.restTime)
   );
 }
 
 function isWorkoutExercise(value: unknown): value is WorkoutExercise {
-  if (!value || typeof value !== 'object') return false;
-  const exercise = value as Partial<WorkoutExercise>;
+  if (!isRecord(value)) return false;
+
   return (
-    typeof exercise.id === 'string' &&
-    typeof exercise.exerciseName === 'string' &&
-    typeof exercise.category === 'string' &&
-    Array.isArray(exercise.sets) &&
-    exercise.sets.every(isSetLog)
+    typeof value.id === 'string' &&
+    typeof value.exerciseName === 'string' &&
+    typeof value.category === 'string' &&
+    Array.isArray(value.sets) &&
+    value.sets.every(isSetLog)
   );
 }
 
@@ -45,56 +63,154 @@ export function isWorkoutExercises(value: unknown): value is WorkoutExercise[] {
 }
 
 function isWorkoutSession(value: unknown): value is WorkoutSession {
-  if (!value || typeof value !== 'object') return false;
-  const session = value as Partial<WorkoutSession>;
+  if (!isRecord(value)) return false;
+
   return (
-    typeof session.workoutDate === 'string' &&
-    typeof session.createdAt === 'string' &&
-    typeof session.updatedAt === 'string' &&
-    isWorkoutExercises(session.exercises)
+    typeof value.workoutDate === 'string' &&
+    typeof value.createdAt === 'string' &&
+    typeof value.updatedAt === 'string' &&
+    isWorkoutExercises(value.exercises)
   );
 }
 
-export function loadWorkoutSessions(): WorkoutSessionsByDate {
-  if (typeof window === 'undefined') return {};
+function parseSessions(value: unknown): WorkoutSessionsByDate | null {
+  if (!isRecord(value)) return null;
+
+  const sessions: WorkoutSessionsByDate = {};
+  for (const [date, session] of Object.entries(value)) {
+    if (isWorkoutSession(session) && session.workoutDate === date) {
+      sessions[date] = session;
+    }
+  }
+
+  return sessions;
+}
+
+function parseOwner(value: unknown): WorkoutSessionOwner | null {
+  if (!isRecord(value)) return null;
+  if (value.kind === 'guest') return { kind: 'guest' };
+  if (
+    value.kind === 'user' &&
+    typeof value.userId === 'string' &&
+    value.userId.length > 0
+  ) {
+    return { kind: 'user', userId: value.userId };
+  }
+
+  return null;
+}
+
+function parseCache(raw: string | null): WorkoutSessionCache | null {
+  if (!raw) return null;
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || parsed.version !== 2) return null;
 
-    const parsed = JSON.parse(raw) as Partial<StoredWorkoutSessions>;
-    if (
-      parsed.version !== 1 ||
-      !parsed.sessions ||
-      typeof parsed.sessions !== 'object'
-    ) {
-      return {};
-    }
+    const owner = parseOwner(parsed.owner);
+    const sessions = parseSessions(parsed.sessions);
+    if (!owner || !sessions) return null;
 
-    return Object.fromEntries(
-      Object.entries(parsed.sessions).filter(
-        ([date, session]) =>
-          isWorkoutSession(session) && session.workoutDate === date,
-      ),
-    );
+    return { version: 2, owner, sessions };
   } catch {
-    return {};
+    return null;
   }
 }
 
-export function saveWorkoutSessions(
-  sessions: WorkoutSessionsByDate,
+function parseLegacySessions(
+  raw: string | null,
+): WorkoutSessionsByDate | null {
+  if (!raw) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || parsed.version !== 1) return null;
+    return parseSessions(parsed.sessions);
+  } catch {
+    return null;
+  }
+}
+
+export function saveWorkoutSessionCache(
+  cache: WorkoutSessionCache,
 ): boolean {
   if (typeof window === 'undefined') return false;
 
   try {
-    const payload: StoredWorkoutSessions = {
-      version: 1,
-      sessions,
-    };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    return true;
+    window.localStorage.setItem(
+      WORKOUT_SESSIONS_STORAGE_KEY,
+      JSON.stringify(cache),
+    );
   } catch {
     return false;
   }
+
+  try {
+    window.localStorage.removeItem(LEGACY_WORKOUT_SESSIONS_STORAGE_KEY);
+  } catch {
+    // The v2 cache is already durable. A stale v1 payload is safe to retry later.
+  }
+
+  return true;
+}
+
+export function loadWorkoutSessionCache(
+  initialOwner: WorkoutSessionOwner,
+): WorkoutSessionCacheLoadResult {
+  const emptyCache: WorkoutSessionCache = {
+    version: 2,
+    owner: initialOwner,
+    sessions: {},
+  };
+
+  if (typeof window === 'undefined') {
+    return { cache: emptyCache, persisted: false, storageError: false };
+  }
+
+  let storedCache: WorkoutSessionCache | null;
+  let legacySessions: WorkoutSessionsByDate | null;
+
+  try {
+    storedCache = parseCache(
+      window.localStorage.getItem(WORKOUT_SESSIONS_STORAGE_KEY),
+    );
+    if (storedCache) {
+      return {
+        cache: storedCache,
+        persisted: true,
+        storageError: false,
+      };
+    }
+
+    legacySessions = parseLegacySessions(
+      window.localStorage.getItem(LEGACY_WORKOUT_SESSIONS_STORAGE_KEY),
+    );
+  } catch {
+    return { cache: emptyCache, persisted: false, storageError: true };
+  }
+
+  const cache: WorkoutSessionCache = {
+    ...emptyCache,
+    sessions: legacySessions ?? {},
+  };
+  const persisted = saveWorkoutSessionCache(cache);
+
+  return {
+    cache,
+    persisted,
+    storageError: !persisted,
+  };
+}
+
+export function isEmptyWorkoutSessionCache(
+  cache: WorkoutSessionCache,
+): boolean {
+  return Object.keys(cache.sessions).length === 0;
+}
+
+export function isOwnerUser(
+  owner: WorkoutSessionOwner,
+  userId: string,
+): boolean {
+  return owner.kind === 'user' && owner.userId === userId;
 }

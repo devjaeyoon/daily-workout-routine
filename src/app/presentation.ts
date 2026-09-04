@@ -69,6 +69,13 @@ export const SYNC_STATUS_PRESENTATION = {
     accountLabel: '동기화 확인 필요',
     accountDescription: '서버 저장을 완료하지 못했어요. 다시 시도해 주세요.',
   },
+  'account-conflict': {
+    headerLabel: '계정 확인 필요',
+    indicatorClassName: 'bg-[#F04452]',
+    accountLabel: '다른 계정의 기록 보호 중',
+    accountDescription:
+      '이 기기의 기존 기록을 보호하려면 사용할 계정을 확인해 주세요.',
+  },
 } satisfies Record<SyncStatus, SyncStatusPresentation>;
 
 type AuthStatusPresentation = {

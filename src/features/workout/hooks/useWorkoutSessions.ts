@@ -4,35 +4,50 @@ import {
   type WorkoutLogsUpdater,
 } from '@/features/workout/model/sessionModel';
 import { useWorkoutDateRollover } from './useWorkoutDateRollover';
-import { useWorkoutSessionStore } from './useWorkoutSessionStore';
+import {
+  useWorkoutSessionStore,
+  type WorkoutSessionScope,
+} from './useWorkoutSessionStore';
 import { useWorkoutSync } from './useWorkoutSync';
 
 export type { SyncStatus } from './useWorkoutSync';
+export type { WorkoutSessionScope } from './useWorkoutSessionStore';
 
-export function useWorkoutSessions(userId?: string) {
+export function useWorkoutSessions(scope: WorkoutSessionScope) {
   const currentDate = useWorkoutDateRollover();
-  const { sessions, sessionsRef, setSessions, storageError } =
-    useWorkoutSessionStore();
+  const {
+    sessions,
+    sessionsRef,
+    setSessions,
+    storageError,
+    canEdit,
+    syncUserId,
+    accountConflict,
+    resolveAccountConflict,
+  } = useWorkoutSessionStore(scope);
   const {
     syncStatus,
     lastSyncedAt,
     syncFromRemote,
     markDirty,
   } = useWorkoutSync({
-    userId,
+    userId: syncUserId,
     sessionsRef,
     setSessions,
     storageError,
+    accountConflict,
   });
 
   const setCurrentLogs = useCallback(
     (updater: WorkoutLogsUpdater) => {
-      setSessions((previousSessions) =>
+      if (!canEdit) return;
+
+      const updated = setSessions((previousSessions) =>
         updateWorkoutSession(previousSessions, currentDate, updater),
       );
-      markDirty(currentDate);
+      if (updated) markDirty(currentDate);
     },
-    [currentDate, markDirty, setSessions],
+    [canEdit, currentDate, markDirty, setSessions],
   );
 
   return {
@@ -43,5 +58,6 @@ export function useWorkoutSessions(userId?: string) {
     syncStatus,
     lastSyncedAt,
     syncFromRemote,
+    resolveAccountConflict,
   };
 }
