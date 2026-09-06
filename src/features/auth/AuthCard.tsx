@@ -71,6 +71,32 @@ export function AuthCard({
           </p>
         </Card>
       );
+    case 'error':
+      return (
+        <Card
+          className="border border-[#FECACA] bg-[#FFF5F5]"
+          role="alert"
+        >
+          <p className="text-[16px] font-bold text-[#191F28]">
+            계정을 확인하지 못했어요
+          </p>
+          <p className="mt-1 text-[14px] leading-relaxed text-[#6B7684]">
+            계정을 확인할 때까지 저장된 운동 기록을 보호하고 있어요.
+          </p>
+        </Card>
+      );
+    case 'retry-wait':
+      return (
+        <Card role="status">
+          <p className="text-[16px] font-bold text-[#191F28]">
+            잠시 후 다시 시도할게요
+          </p>
+          <p className="mt-1 text-[14px] leading-relaxed text-[#6B7684]">
+            저장된 운동 기록은 계속 보호하고 있어요. 최대 1분 뒤 계정을
+            자동으로 다시 확인해요.
+          </p>
+        </Card>
+      );
     case 'unconfigured':
       return (
         <Card className="border border-[#FFE0B2] bg-[#FFF9F0]">

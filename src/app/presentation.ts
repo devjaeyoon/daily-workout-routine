@@ -88,6 +88,14 @@ export const AUTH_STATUS_PRESENTATION = {
     isSignedIn: false,
     showBackupPrompt: true,
   },
+  error: {
+    isSignedIn: false,
+    showBackupPrompt: false,
+  },
+  'retry-wait': {
+    isSignedIn: false,
+    showBackupPrompt: false,
+  },
   'signed-out': {
     isSignedIn: false,
     showBackupPrompt: true,

@@ -7,6 +7,7 @@ import {
   type WorkoutSessionScope,
 } from '@/features/workout/hooks/useWorkoutSessions';
 import { TodayWorkoutScreen } from '@/features/workout/today/TodayWorkoutScreen';
+import { Button } from '@/shared/ui/button';
 import { AccountDialog } from './AccountDialog';
 import { BottomNavigation, type AppTab } from './BottomNavigation';
 import { Header } from './Header';
@@ -16,7 +17,13 @@ function getWorkoutSessionScope(
   authStatus: AuthStatus,
   userId: string | undefined,
 ): WorkoutSessionScope {
-  if (authStatus === 'loading') return { status: 'pending' };
+  if (
+    authStatus === 'loading' ||
+    authStatus === 'error' ||
+    authStatus === 'retry-wait'
+  ) {
+    return { status: 'pending' };
+  }
   if (authStatus === 'signed-in' && userId) {
     return { status: 'signed-in', userId };
   }
@@ -33,6 +40,7 @@ export default function App() {
     signIn,
     signUp,
     signOut,
+    retryAuth,
   } = useSupabaseAuth();
   const workoutScope = getWorkoutSessionScope(authStatus, user?.id);
   const {
@@ -74,6 +82,50 @@ export default function App() {
         >
           저장된 운동 기록의 계정을 확인하고 있어요.
         </p>
+      </main>
+    );
+  }
+
+  if (authStatus === 'error') {
+    return (
+      <main className="flex min-h-dvh items-center justify-center px-6">
+        <div className="max-w-sm text-center" role="alert">
+          <h1 className="text-[22px] font-bold text-[#191F28]">
+            계정을 확인하지 못했어요
+          </h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-[#6B7684]">
+            저장된 운동 기록을 보호하기 위해 계정을 확인할 때까지 기록을
+            숨기고 있어요. 네트워크 연결을 확인한 뒤 다시 시도해 주세요.
+          </p>
+          <Button
+            type="button"
+            className="mt-5"
+            onClick={retryAuth}
+          >
+            다시 시도
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
+  if (authStatus === 'retry-wait') {
+    return (
+      <main className="flex min-h-dvh items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <div role="status">
+            <h1 className="text-[22px] font-bold text-[#191F28]">
+              잠시 후 다시 시도할게요
+            </h1>
+            <p className="mt-2 text-[14px] leading-relaxed text-[#6B7684]">
+              저장된 운동 기록은 계속 보호하고 있어요. 최대 1분 뒤 계정을
+              자동으로 다시 확인해요.
+            </p>
+          </div>
+          <Button type="button" className="mt-5" disabled>
+            자동 재시도 대기 중
+          </Button>
+        </div>
       </main>
     );
   }
